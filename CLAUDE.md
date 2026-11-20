@@ -4,7 +4,8 @@ Read `README.md`, then the doc for the area you're changing. The docs in `docs/`
 
 ## Working rules
 - Never commit to `main`. Work on a branch (`feat/`, `fix/`, `docs/`, `chore/`, `refactor/`) and open a pull request using the template.
-- Build milestones in the order in `docs/roadmap.md`. One milestone (or one slice of one) per PR.
+- Build in the slice order in `docs/build-plan.md`. One slice per session and per PR; read only the docs that slice lists. Tick its status in the same PR.
+- Project subagents live in `.claude/agents/`. Delegate only bounded work to them, with the exact files and doc sections in the brief.
 - Update the relevant docs in the same PR as the behavior change.
 - Run typecheck, lint, tests and build before calling anything done (once M1 exists).
 - Ask before adding a dependency not listed in `docs/architecture.md`, and justify it in the PR.
