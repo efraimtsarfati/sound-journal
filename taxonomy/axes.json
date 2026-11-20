@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "description": "The structure of the Sound Journal taxonomy: the kinds of reasons a moment can be saved for. Tags (the vocabulary) live in the database; each tag belongs to exactly one axis defined here. Change this file only through a pull request, and bump the version.",
+  "axes": [
+    {
+      "id": "sound",
+      "label": "Sound",
+      "question": "What does it sound like?",
+      "covers": "Timbre, tone, effects, production, mix, recording character, specific instruments' sound.",
+      "examples": [
+        "chorus-drenched guitar",
+        "dry vocals",
+        "tape saturation",
+        "wide stereo",
+        "reverb tail"
+      ]
+    },
+    {
+      "id": "technique",
+      "label": "Technique",
+      "question": "How is it played or made?",
+      "covers": "Playing and performance methods, voicings, rhythmic approaches, production techniques the listener could learn or reproduce.",
+      "examples": [
+        "interlocking guitars",
+        "arpeggiated lines",
+        "open tunings",
+        "ghost notes",
+        "call and response"
+      ]
+    },
+    {
+      "id": "structure",
+      "label": "Structure",
+      "question": "What happens in the arrangement?",
+      "covers": "Form and arrangement events: builds, drops, key changes, a section entering, tension and release over time.",
+      "examples": [
+        "slow build",
+        "key change",
+        "instrument drops out",
+        "false ending",
+        "sparse arrangement"
+      ]
+    },
+    {
+      "id": "feeling",
+      "label": "Feeling",
+      "question": "How does it feel?",
+      "covers": "Emotional and atmospheric qualities in the listener's words.",
+      "examples": [
+        "touching",
+        "hopeful but realistic",
+        "melancholy",
+        "floating",
+        "restless"
+      ]
+    },
+    {
+      "id": "lyric",
+      "label": "Lyric",
+      "question": "What is it saying?",
+      "covers": "Words, phrasing, imagery, meaning of lyrics or text.",
+      "examples": [
+        "vivid imagery",
+        "conversational lyrics",
+        "repetition as mantra"
+      ]
+    },
+    {
+      "id": "association",
+      "label": "Association",
+      "question": "What does it connect to for me?",
+      "covers": "Personal context: memories, places, people, projects or uses the listener ties to the moment.",
+      "examples": [
+        "night driving",
+        "song draft reference",
+        "sample candidate",
+        "childhood memory"
+      ]
+    }
+  ],
+  "rules": {
+    "tag_format": "lowercase, 1 to 4 words, no punctuation except hyphens; describe one quality per tag",
+    "one_axis_per_tag": true,
+    "reuse_before_create": "Always reuse an existing approved or proposed tag when its meaning fits; create a new proposed tag only when none does.",
+    "source_of_tags": "Tags must come from what the user's note says. Do not tag qualities the note doesn't mention, even if the agent knows the song."
+  }
+}

@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  taxonomy:
+    name: Validate taxonomy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: axes.json is valid and well-formed
+        run: |
+          node -e '
+            const t = require("./taxonomy/axes.json");
+            if (!Number.isInteger(t.version)) throw new Error("version must be an integer");
+            const ids = t.axes.map(a => a.id);
+            if (new Set(ids).size !== ids.length) throw new Error("duplicate axis id");
+            for (const a of t.axes) for (const k of ["id","label","question","covers"]) if (!a[k]) throw new Error(`axis ${a.id} missing ${k}`);
+            console.log(`taxonomy v${t.version}: ${ids.join(", ")}`);
+          '
+  # M1 adds: typecheck, lint, test, build
