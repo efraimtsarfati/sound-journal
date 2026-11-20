@@ -31,6 +31,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Migrations match the schema
+        run: npx drizzle-kit generate && test -z "$(git status --porcelain lib/db/migrations)"
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

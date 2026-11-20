@@ -72,6 +72,8 @@ On GitHub Free, protected branches are available for public repositories. Set up
 - Prefer **expand, then contract**: add the new column/table, migrate data, switch code over, and only remove the old column in a later PR.
 - Every migration must run cleanly from an empty database. Once M2 lands, CI and unit tests apply all migrations to an in-memory PGlite database on every run — no secrets needed, so it works for PRs from forks.
 - Deploys apply migrations automatically: the `vercel-build` script runs `drizzle-kit migrate` before `next build` (see architecture → Environments).
+- Scripts: `npm run db:generate` (create a migration from schema changes), `db:migrate` (apply), `db:check` (consistency). CI re-runs `drizzle-kit generate` and fails if it produces a diff, so the schema and migrations can never drift.
+- Seed rows (the owner and its settings) are appended by hand to `0000_init.sql` and are idempotent (`ON CONFLICT DO NOTHING`).
 - Each PR's preview runs against its own Neon branch where possible, so migrations are tested on a copy of the data.
 
 ## Tests
