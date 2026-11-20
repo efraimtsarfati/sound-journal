@@ -4,6 +4,16 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-20 — M1 — App skeleton, /api/health, CI, v0.1.0 (PR #4)
+**State:** done. Next.js 16 + TS + Tailwind 4 + Vitest skeleton, `/api/health`, CI job for typecheck/lint/test/build, `vercel-build`, v0.1.0 cut in changelog and `package.json`. All checks pass locally.
+**Next:** owner creates the Vercel project, merges PR #4, tags `v0.1.0`, adds the new CI check to branch protection; then start M2a with `claude --model opusplan --effort high`.
+**Gotchas:**
+- `git commit` failed with no author identity on this machine → set repo-local `user.name`/`user.email` (owner chose their Gmail; consider a noreply address).
+- Repo files are CRLF → scripted edits must preserve CRLF; Python needs `PYTHONUTF8=1` and `newline=''` or em dashes get mangled.
+- Vitest config as `.ts` warns about ESM in CJS → use `vitest.config.mts`.
+**Doc drift:** README status, CONTRIBUTING CI note, build-plan, CHANGELOG updated.
+**Follow-ups:** `eslint` + `eslint-config-next` are not listed in architecture Stack; add them to the table.
+
 ## 2026-11-20 — chore — Effort levels (PR #3)
 **State:** done. Effort column per slice in the build plan (`low` for scaffolding and review sessions, `medium` default, `high` for M2a and M5a); project `effortLevel: medium`; agents and `/wrap-up` pin their own effort.
 **Next:** owner pulls, then starts M1 with `claude --model sonnet --effort low`.
