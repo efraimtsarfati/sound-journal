@@ -7,7 +7,7 @@ How changes get into Sound Journal. The goal: `main` is always deployable, every
 1. **Nobody commits directly to `main`.** Every change is a branch and a pull request.
 2. **One PR, one purpose.** A milestone or a feature slice — not "misc fixes and also a new screen."
 3. **Checks must pass before merging.** Typecheck, lint, tests, build.
-4. **Test on the preview.** Every PR gets a Vercel preview URL. UI changes are checked on a phone.
+4. **PRs merge themselves when checks pass.** Agents enable auto-merge (`gh pr merge --squash --auto --delete-branch`); GitHub merges the moment the required checks are green. Human review is optional. Every PR still gets a Vercel preview URL to try.
 5. **Docs change with the code.** If behavior changes, the matching doc changes in the same PR.
 6. **No secrets in the repo.** Ever. The repo is public.
 
@@ -31,7 +31,12 @@ Small and descriptive, imperative mood: `Add duplicate check for YouTube entries
 
 Every PR uses the template (`.github/pull_request_template.md`): what changed, why, how to test it on the preview, data/migration impact, docs updated. Squash-merge into `main` so each PR becomes one commit in history.
 
-**Review:** the owner reviews every PR, even when an AI wrote it. Reviewing without reading code is legitimate: open the preview, run the "how to test" steps, check the docs diff, and confirm the checks are green.
+**Merging:** PRs auto-merge once the required checks pass — no manual approval. What keeps that safe:
+- The `main` ruleset requires a PR and **both** CI checks (`Validate taxonomy`, `Typecheck, lint, test, build`), and blocks force pushes and deletions. Nobody, agent or human, can merge red.
+- Slices that touch schema, auth, deletion or search sync get an independent review by the Opus `pr-reviewer` agent before auto-merge is enabled; blocking findings are fixed first.
+- Every merge is one squash commit, so any change can be reverted in one step (`git revert <sha>` in a new PR), and Vercel can instantly roll production back to the previous deployment.
+
+**Optional human review:** to hold a PR for yourself, say so before it opens ("hold for review"), or turn off auto-merge on it in GitHub. Reviewing without reading code is legitimate: open the preview, run the "how to test" steps, check the docs diff.
 
 ## Checks (CI)
 

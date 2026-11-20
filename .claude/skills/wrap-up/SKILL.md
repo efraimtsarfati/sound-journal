@@ -45,4 +45,4 @@ Leave out sections with nothing in them rather than writing "none" everywhere. N
 - Rotate the log: when `docs/dev-log.md` passes about 30 entries, move all but the latest 10 into `docs/dev-log-archive.md`.
 
 ## 6. Commit
-Commit only the files above, to the current PR branch (never `main`), with the message `Wrap-up: <slice>`, and push. Then tell the user, in two or three lines, where things stand and what the next session should start with.
+Commit only the files above, to the current PR branch (never `main`), with the message `Wrap-up: <slice>`, and push. If auto-merge isn't on yet for this PR and the user didn't ask to hold it, enable it: `gh pr merge <n> --squash --auto --delete-branch`. Then tell the user, in two or three lines, where things stand and what the next session should start with.

@@ -44,6 +44,7 @@
 | Media source (v1) | YouTube: oEmbed for metadata (no key), IFrame Player API for playback/timestamps | Works for anyone; Spotify's API is restricted for new apps. See [ADR 0004](decisions/0004-youtube-first-sources.md) |
 | Music metadata | MusicBrainz (free, open) | IDs that unlock credits, members, genres later |
 | Tests | Vitest | Fast unit tests for `lib/core` |
+| Lint | ESLint with `eslint-config-next` | Next.js's recommended rules; run in CI |
 | CI | GitHub Actions | Typecheck, lint, test, build on every PR |
 
 Exact package versions are pinned when the skeleton is created (milestone M1). Adding any dependency not listed here needs a note in the PR description explaining why.

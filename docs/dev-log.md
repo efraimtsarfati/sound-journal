@@ -4,6 +4,13 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-20 — chore — Autopilot and auto-merge (PR #5)
+**State:** done in this PR: `/autopilot` skill, auto-merge policy in CONTRIBUTING and CLAUDE.md, wrap-up enables auto-merge, permission guidance in the build plan, ESLint added to the architecture stack (M1 follow-up).
+**Next:** owner, once: merge this PR; Settings → General → tick **Allow auto-merge** and **Automatically delete head branches**; add **Typecheck, lint, test, build** as a required check in the `protect main` ruleset; install GitHub CLI (`winget install GitHub.cli`) and run `gh auth login`. Then: `claude --model sonnet --effort low` → `/autopilot until M2b`. Vercel project and Neon must exist before M2a (autopilot asks).
+**Gotchas:**
+- Cloud sessions can open PRs but can't merge them, change repo settings or edit permission settings; those need the owner or a local session.
+- Auto-merge is only as safe as the required checks: `Typecheck, lint, test, build` was not yet required after M1.
+
 ## 2026-11-20 — M1 — App skeleton, /api/health, CI, v0.1.0 (PR #4)
 **State:** done. Next.js 16 + TS + Tailwind 4 + Vitest skeleton, `/api/health`, CI job for typecheck/lint/test/build, `vercel-build`, v0.1.0 cut in changelog and `package.json`. All checks pass locally.
 **Next:** owner creates the Vercel project, merges PR #4, tags `v0.1.0`, adds the new CI check to branch protection; then start M2a with `claude --model opusplan --effort high`.
