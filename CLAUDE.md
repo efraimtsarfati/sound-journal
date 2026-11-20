@@ -1,0 +1,33 @@
+# Sound Journal — instructions for AI coding sessions
+
+Read `README.md`, then the doc for the area you're changing. The docs in `docs/` are the specification: if the code and a doc disagree, stop and ask rather than guessing which is right.
+
+## Working rules
+- Never commit to `main`. Work on a branch (`feat/`, `fix/`, `docs/`, `chore/`, `refactor/`) and open a pull request using the template.
+- Build milestones in the order in `docs/roadmap.md`. One milestone (or one slice of one) per PR.
+- Update the relevant docs in the same PR as the behavior change.
+- Run typecheck, lint, tests and build before calling anything done (once M1 exists).
+- Ask before adding a dependency not listed in `docs/architecture.md`, and justify it in the PR.
+- The repo is public: no secrets, no real journal data, no personal data in code, fixtures or commits.
+
+## Architecture rules (from docs/architecture.md)
+- Business rules live only in `lib/core`. Pages, API routes and MCP tools are thin wrappers that call `lib/core`.
+- Only `lib/db` imports the Postgres client. Only `lib/search` imports the vector client.
+- External services are adapters in `lib/sources/` and `lib/metadata/`.
+- Every query on personal data is scoped by `user_id`, even in single-user v1. Only `artists` and `artist_genres` (shared reference data) are exempt.
+- Postgres is the source of truth; the vector index is derived and must be rebuildable.
+
+## Data rules (from docs/data-model.md and docs/taxonomy.md)
+- Tags live on highlights, never on entries.
+- Workflow status (`needs_why`, `needs_tags`, `tagged`) is never a tag.
+- Genres live in `artist_genres`, never in `tags`.
+- Agent-created tags start as `proposed`. `set_highlight_tags` diffs; it never resets `added_at` on kept tags.
+- Deletes are soft (`deleted_at`); an entry always keeps at least one live highlight.
+- Schema changes are Drizzle migrations; never edit a migration that has run in production; prefer expand-then-contract.
+- `visibility` must be `private` in v1.
+
+## Product rules
+- No AI API keys in the app. AI features run in the user's agent through MCP.
+- Never fabricate tracks, links, timestamps or metadata. Unverified matches stay `unmatched`.
+- Capture must stay fast: a note is never required to save.
+- Mobile-first: check ~375px wide; tap targets at least 44×44px.
