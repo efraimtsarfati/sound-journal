@@ -4,6 +4,7 @@ Read `README.md`, then the doc for the area you're changing. The docs in `docs/`
 
 ## Working rules
 - Never commit to `main`. Work on a branch (`feat/`, `fix/`, `docs/`, `chore/`, `refactor/`) and open a pull request using the template.
+- **Model check, first thing:** look up the slice's **Model** in `docs/build-plan.md` and compare it with the model you are running on. If they differ, stop before planning and tell the user the exact command (e.g. `/model opusplan`). Continue only after they switch or say to proceed anyway. In `opusplan`, being on Opus while planning and Sonnet while implementing is correct.
 - Build in the slice order in `docs/build-plan.md`. One slice per session and per PR; read only the docs that slice lists. Tick its status in the same PR.
 - End every build session with the `wrap-up` skill (`/wrap-up`) before `/clear`. Start every session by reading the top entry of `docs/dev-log.md`.
 - Project subagents live in `.claude/agents/`. Delegate only bounded work to them, with the exact files and doc sections in the brief.

@@ -4,6 +4,12 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-20 — chore — Model routing (PR #2)
+**State:** done. Project default model `sonnet` (`.claude/settings.json`); M2a and M5a use `opusplan`; reviews run on Haiku with the Opus `pr-reviewer` agent; `/wrap-up` runs on Haiku; CLAUDE.md has a model check that stops and asks when the session model doesn't match the slice.
+**Next:** owner clones the repo to `C:\Users\efrai\dev\sound-journal` and starts M1 with `claude --model sonnet` (or just `claude`).
+**Gotchas:**
+- A session can't switch its own model; only the user can (`/model`, `--model`). Skills switch for one turn only; agents are pinned by their own `model` field.
+
 ## 2026-11-20 — M0 — Project documentation (PR #1)
 **State:** done. Docs, taxonomy structure, CI stub, build plan, project agents and this skill are in PR #1.
 **Next:** owner merges PR #1, turns on branch protection (ruleset on `main`: require PR with 0 approvals, require "Validate taxonomy", block force pushes), clones to `C:\Users\efrai\dev\sound-journal`; then start slice M1.
