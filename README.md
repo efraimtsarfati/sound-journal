@@ -4,7 +4,7 @@ A personal reference library for the **moments** in music (and later film and bo
 
 You hear something — a whole song, or just the bit where the guitars start weaving around each other — and you save it with a note in your own words. An AI agent you connect (Claude, or any MCP client) reads your notes, tags them against a shared taxonomy, and helps you find them again by meaning ("sparse, two lines circling each other"), not just by title. Over time the journal becomes a map of your taste, and a starting point for discovering new music with the qualities you keep coming back to.
 
-> **Status:** design phase. No application code yet — this repository currently holds the documentation that the code will be built against. See [`docs/roadmap.md`](docs/roadmap.md) for where things are.
+> **Status:** early build. The app skeleton exists (v0.1.0); features arrive milestone by milestone, built against the documentation in this repository. See [`docs/roadmap.md`](docs/roadmap.md) for where things are.
 
 ## Core ideas
 

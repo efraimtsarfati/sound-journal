@@ -13,7 +13,7 @@ Run this in the same session that did the work, before `/clear`. Its value comes
 - `git branch --show-current`, `git log --oneline main..HEAD`, `git diff main...HEAD --stat`
 - The latest typecheck / lint / test / build results (re-run them only if they haven't been run since the last change).
 - From this session's own history: what broke, what took more than one attempt, what surprised you, where the docs were wrong or silent, and what is unfinished.
-- Ask the user one question: "Anything that got in your way this session that I should record?" Include their answer.
+- Do not ask the user anything. Wrap-up is your own reflection on the session; record what got in the way from your own history.
 
 ## 2. Update `docs/build-plan.md`
 - Slice finished and PR open → set its status to ◐ with the PR number (the merge flips it to ☑).

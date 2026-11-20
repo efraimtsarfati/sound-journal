@@ -45,8 +45,6 @@ GitHub Actions runs on every PR and on `main`:
 | Build | `npm run build` | anything that wouldn't deploy |
 | Taxonomy | validate `taxonomy/axes.json` | a broken taxonomy file |
 
-Until the app skeleton exists (milestone M1), CI only validates the taxonomy file.
-
 ## Branch protection (public repo)
 
 On GitHub Free, protected branches are available for public repositories. Set up once, under **Settings → Branches → Add branch ruleset** (or classic branch protection) for `main`:
