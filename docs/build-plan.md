@@ -68,7 +68,22 @@ Built-in **Explore** is the right tool for "where is X handled?" searches. It's 
 5. **Delegate only bounded work to subagents**, with the exact files and doc sections in the brief. Small edits stay in the main session.
 6. **End with `/wrap-up`, before `/clear`.** It ticks the status column, writes a short dev-log entry (where it stopped, gotchas, doc drift) and promotes recurring gotchas to CLAUDE.md. The next session reads one table and one entry instead of the git history.
 
-## Kickoff prompt (copy, then edit the slice)
+## Autopilot (no manual PR approvals)
+
+To build several slices in one go, start an orchestrator session and let it run:
+
+```
+claude --model sonnet --effort low
+/autopilot until M4c
+```
+
+It picks the next ☐ slice, runs it in a fresh subagent on that slice's model and effort (`opusplan` slices get an Opus planning subagent, then a Sonnet implementer), has the Opus `pr-reviewer` check slices that touch schema, auth, deletion or search sync, and enables auto-merge so GitHub merges each PR when its checks pass. It publishes releases when a milestone completes.
+
+It **stops and asks** only for: human steps in the table below (accounts, secrets), a check that fails twice, a blocking review finding that survives one fix round, or a doc ambiguity that changes behavior. The "review" rows in the table are handled inside autopilot's review gate.
+
+**Permission prompts** are the owner's call, so the repo doesn't pre-approve anything. For an unattended run, either start Claude Code in auto mode, or add an allowlist to your own `.claude/settings.local.json` (git-ignored), for example allowing `Bash(git *)`, `Bash(gh *)`, `Bash(npm *)`, `Bash(npx *)` and `Bash(node *)` while denying `Bash(git push --force*)`, `Bash(gh repo delete*)` and `Read(./.env*)`.
+
+## Kickoff prompt (one slice, interactive)
 
 Launch with the slice's model and effort first, e.g. `claude --model sonnet --effort medium`. Then paste:
 
