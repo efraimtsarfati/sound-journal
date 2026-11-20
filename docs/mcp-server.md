@@ -4,6 +4,7 @@ Sound Journal exposes a remote MCP server so the owner can connect their own age
 
 - **Endpoint:** `${APP_ORIGIN}/api/mcp`
 - **Auth:** OAuth 2.1 (discovery at `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource`, dynamic client registration, PIN consent page). Any MCP client that supports remote servers with OAuth can connect.
+- **Server info:** name `sound-journal`, version from `package.json` (so an agent can tell which release it's connected to).
 - **Connector switches** (set in the web app): `enabled`, `allowChanges`, `allowDeletes`. Every tool checks them and returns a refusal naming the switch, never an empty result.
 
 ## Tools (v1)

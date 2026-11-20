@@ -7,7 +7,8 @@ Read `README.md`, then the doc for the area you're changing. The docs in `docs/`
 - Build in the slice order in `docs/build-plan.md`. One slice per session and per PR; read only the docs that slice lists. Tick its status in the same PR.
 - End every build session with the `wrap-up` skill (`/wrap-up`) before `/clear`. Start every session by reading the top entry of `docs/dev-log.md`.
 - Project subagents live in `.claude/agents/`. Delegate only bounded work to them, with the exact files and doc sections in the brief.
-- Update the relevant docs in the same PR as the behavior change.
+- Update the relevant docs in the same PR as the behavior change. If the change is visible to a user or a connected agent, add a line under `[Unreleased]` in `CHANGELOG.md`.
+- The PR that finishes a milestone also cuts its release (see CONTRIBUTING → Versioning and releases).
 - Run typecheck, lint, tests and build before calling anything done (once M1 exists).
 - Ask before adding a dependency not listed in `docs/architecture.md`, and justify it in the PR.
 - The repo is public: no secrets, no real journal data, no personal data in code, fixtures or commits.

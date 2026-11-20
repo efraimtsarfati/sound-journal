@@ -87,6 +87,29 @@ A PR is ready to merge when:
 - [ ] No secrets, no personal data, no stray debug code
 - [ ] New dependencies are justified in the PR description
 
+## Versioning and releases
+
+Sound Journal uses [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
+
+| Change | Before 1.0 | After 1.0 |
+|---|---|---|
+| A milestone completes | minor: `0.2.0` → `0.3.0` | — |
+| A bug fix released on its own | patch: `0.3.0` → `0.3.1` | patch |
+| New feature, backward compatible | minor | minor |
+| Breaking change (data export format, MCP tool contract) | minor, called out in the changelog | major |
+
+**Milestone → version:** M1 → `v0.1.0`, M2 → `v0.2.0`, … M8 → `v0.8.0`. **`v1.0.0` is cut when all eight acceptance criteria in `docs/spec-v1.md` pass on a phone.** M0 (docs only) is not released on its own; its changelog entries ship with `v0.1.0`.
+
+**Every PR:** if the change is visible to a user or a connected agent, add a line under `## [Unreleased]` in `CHANGELOG.md` (Added / Changed / Fixed / Removed). Internal refactors and doc-only changes don't need one.
+
+**Cutting a release** (done in the PR for the milestone's last slice, so `main` is never edited directly):
+1. Set `"version"` in `package.json` to the new version.
+2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.3.0] — YYYY-MM-DD` and add a fresh empty `## [Unreleased]` above it.
+3. Merge the PR.
+4. Tag `main` and publish the release — either in GitHub (**Releases → Draft a new release → Choose a tag: `v0.3.0` → target `main`**, paste that version's changelog section, publish), or from a terminal: `git checkout main && git pull && git tag v0.3.0 && git push origin v0.3.0`, then publish the release notes in GitHub.
+
+**Where the version shows:** `package.json` is the single source. `/api/health` returns it, the web app shows it in Settings, and the MCP server reports it in its server info, so you can always tell which version your phone or your agent is talking to. Vercel still deploys every merge to `main`; versions label meaningful points, they don't gate deploys.
+
 ## Decision records
 
 Significant choices get a short record in `docs/decisions/` (`NNNN-title.md`): context, decision, consequences, alternatives considered. Records are never deleted; a reversed decision gets a new record that supersedes the old one.

@@ -16,6 +16,8 @@ Two parts: **v1 milestones** (each roughly one pull request, each leaving the ap
 | M7 | Metadata | MusicBrainz lookup adapter, `match_entry`, artist records, genre layer, confirm-match UI | New entries get matched or flagged `unmatched` |
 | M8 | Phone polish | PWA install, mobile layout pass, capture speed check | All acceptance criteria pass on a phone |
 
+Each milestone ships as a release: M1 → `v0.1.0` through M8 → `v0.8.0`, and `v1.0.0` once every acceptance criterion passes on a phone.
+
 Order matters: M2 (data) before M4 (screens) and M5 (agent), because both interfaces are thin layers over the same core. [build-plan.md](build-plan.md) splits these milestones into Claude Code sessions, with the model and agent for each.
 
 ## Future features

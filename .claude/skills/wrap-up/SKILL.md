@@ -32,11 +32,15 @@ Newest first, so the next session only reads the top. Keep it under about 15 lin
 
 Leave out sections with nothing in them rather than writing "none" everywhere. No secrets, tokens, personal data or real journal content — the repo is public.
 
-## 4. Promote what will bite again
+## 4. Changelog and release
+- If this PR changes anything a user or a connected agent can see, make sure `CHANGELOG.md` has a line for it under `## [Unreleased]`.
+- If this slice **finishes a milestone**, cut the release in this PR: bump `package.json` to the milestone's version (M1 → 0.1.0 … M8 → 0.8.0), turn `[Unreleased]` into `## [x.y.0] — YYYY-MM-DD` with a fresh `[Unreleased]` above it, and tell the user to tag and publish the release after merging (CONTRIBUTING → Versioning and releases).
+
+## 5. Promote what will bite again
 - A gotcha that **any** future session could hit (tooling, environment, a library quirk) → add one line to the **Gotchas** section of `CLAUDE.md`. Keep that section under 15 lines; merge or drop stale lines rather than letting it grow.
 - A gotcha about **one area** → put it in that area's doc (e.g. a Neon quirk in architecture → Environments).
 - Code and docs disagree → fix the docs now (or use the `docs-sync` agent). If the code is what's wrong, list it under Follow-ups instead.
 - Rotate the log: when `docs/dev-log.md` passes about 30 entries, move all but the latest 10 into `docs/dev-log-archive.md`.
 
-## 5. Commit
+## 6. Commit
 Commit only the files above, to the current PR branch (never `main`), with the message `Wrap-up: <slice>`, and push. Then tell the user, in two or three lines, where things stand and what the next session should start with.

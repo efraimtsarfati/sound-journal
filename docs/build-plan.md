@@ -52,12 +52,12 @@ For review, in a fresh session: `Use the pr-reviewer agent to review PR #<n> aga
 
 ## Slices
 
-Status: ☐ not started · ◐ in progress · ☑ merged
+Status: ☐ not started · ◐ in progress · ☑ merged. The last slice of each milestone also cuts its release (M1 → `v0.1.0` … M8 → `v0.8.0`; `v1.0.0` when all acceptance criteria pass) — see CONTRIBUTING → Versioning and releases.
 
 | Slice | Task | Main model | Agents | Read these docs | Human steps | Status |
 |---|---|---|---|---|---|---|
 | **M0** | Documentation | — | — | — | Review and merge PR #1, turn on branch protection | ◐ |
-| **M1** | Next.js + TS + Tailwind skeleton, `/api/health`, CI (typecheck, lint, test, build), `vercel-build` script | Sonnet | — | architecture (Stack, Repository layout), CONTRIBUTING | Create the Vercel project from the repo | ☐ |
+| **M1** | Next.js + TS + Tailwind skeleton, `/api/health` returning the `package.json` version, CI (typecheck, lint, test, build), `vercel-build` script; release `v0.1.0` | Sonnet | — | architecture (Stack, Repository layout), CONTRIBUTING | Create the Vercel project from the repo | ☐ |
 | **M2a** | Drizzle schema for all tables, first migration with owner seed, PGlite test harness | Sonnet (plan with **Opus**) | `db-schema` | data-model (all), architecture (Environments) | Add Neon via Vercel Marketplace; `DATABASE_URL` appears in Vercel | ☐ |
 | **M2b** | `lib/core`: entries, highlights, status transitions, tag lifecycle, soft delete, duplicate check + tests | Sonnet | `core-logic` | data-model (Statuses, rules), taxonomy (Rules) | — | ☐ |
 | **M2 review** | Review the M2 PRs | — | `pr-reviewer` (Opus) | — | Read the review, merge | ☐ |

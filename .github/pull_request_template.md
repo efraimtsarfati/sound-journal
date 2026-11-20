@@ -16,6 +16,7 @@
 - [ ] spec-v1 · architecture · data-model · taxonomy · mcp-server · roadmap · CONTRIBUTING · README
 
 ## Checklist
+- [ ] `CHANGELOG.md` updated under Unreleased (or: not user-visible)
 - [ ] Checks green
 - [ ] Tested on preview (phone, if UI)
 - [ ] No secrets or personal data

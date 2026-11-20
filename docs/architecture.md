@@ -125,6 +125,10 @@ Neon branches let each pull request test schema migrations against a copy of the
 
 **Who runs migrations:** the `vercel-build` script runs `drizzle-kit migrate` against that environment's `DATABASE_URL`, then `next build`. A failed migration fails the deploy, so production is never left on code that expects a schema it doesn't have. Migrations are therefore written to be safe to run while the previous version is still serving (expand, then contract).
 
+## Versioning
+
+`package.json` `version` is the single source. It's exposed at `/api/health`, in the app's Settings screen, and as the MCP server's `serverInfo.version`. Release rules are in [CONTRIBUTING](../CONTRIBUTING.md#versioning-and-releases).
+
 ## Repository layout (target)
 
 ```
