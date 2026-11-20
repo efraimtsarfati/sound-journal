@@ -27,6 +27,23 @@ A session can't change its own model, so the setup does it for you at the points
 | Model check | CLAUDE.md tells every session to compare the model it's running on with the slice's **Model** column before planning. If they differ, it stops and tells you the exact `/model` command — you switch (or tell it to carry on), and it continues |
 
 
+## Effort levels
+
+Effort is how much the model thinks before answering. More effort means more thinking tokens: better on hard reasoning, wasted on boilerplate. Opus, Sonnet and Haiku 5.5 support `low`, `medium`, `high`, `xhigh` and `max`, and default to `medium`. The project sets `medium` explicitly in `.claude/settings.json`, so it stays put if defaults change.
+
+| Level | Use for here |
+|---|---|
+| `low` | Scaffolding, wiring, simple UI passes, review sessions where the agent does the real work |
+| `medium` | Most implementation — the default |
+| `high` | The two slices where a wrong design is expensive (M2a schema, M5a OAuth) and the reviewer agent |
+| `xhigh`, `max` | Not needed in this project. Reach for them only when a `high` session is visibly going in circles on a hard bug |
+
+**How it's applied:**
+- **At launch:** `claude --model <model> --effort <level>`, from the **Model** and **Effort** columns below. For example, M2a: `claude --model opusplan --effort high`.
+- **Mid-session:** `/effort high`, or the left/right arrows on the slider in `/model`. Typing a level after `/effort` saves it as your default, so use `/effort auto` afterwards (or `s` in the slider for this session only) to avoid carrying `high` into the next slice.
+- **Agents and skills pin their own effort:** `pr-reviewer` runs at `high`; `docs-sync` and `/wrap-up` at `low`; the building agents at `medium`. These override the session level while they're active.
+- **The model check doesn't cover effort:** a session can't reliably see its own effort level, so the launch command is what sets it.
+
 ## Project agents (`.claude/agents/`)
 
 Subagents start with a clean context, so they're worth it only for **well-bounded** tasks with a clear brief. Each is pinned to the cheapest model that does the job well.
@@ -53,6 +70,8 @@ Built-in **Explore** is the right tool for "where is X handled?" searches. It's 
 
 ## Kickoff prompt (copy, then edit the slice)
 
+Launch with the slice's model and effort first, e.g. `claude --model sonnet --effort medium`. Then paste:
+
 ```
 Read CLAUDE.md, README.md, docs/build-plan.md and the top entry of docs/dev-log.md.
 Work on slice <M2a> from docs/build-plan.md.
@@ -70,26 +89,26 @@ For review, in a fresh session: `Use the pr-reviewer agent to review PR #<n> aga
 
 Status: ☐ not started · ◐ in progress · ☑ merged. The last slice of each milestone also cuts its release (M1 → `v0.1.0` … M8 → `v0.8.0`; `v1.0.0` when all acceptance criteria pass) — see CONTRIBUTING → Versioning and releases.
 
-| Slice | Task | Model | Agents | Read these docs | Human steps | Status |
-|---|---|---|---|---|---|---|
-| **M0** | Documentation | — | — | — | Review and merge PR #1, turn on branch protection | ☑ |
-| **M1** | Next.js + TS + Tailwind skeleton, `/api/health` returning the `package.json` version, CI (typecheck, lint, test, build), `vercel-build` script; release `v0.1.0` | `sonnet` | — | architecture (Stack, Repository layout), CONTRIBUTING | Create the Vercel project from the repo | ☐ |
-| **M2a** | Drizzle schema for all tables, first migration with owner seed, PGlite test harness | `opusplan` | `db-schema` | data-model (all), architecture (Environments) | Add Neon via Vercel Marketplace; `DATABASE_URL` appears in Vercel | ☐ |
-| **M2b** | `lib/core`: entries, highlights, status transitions, tag lifecycle, soft delete, duplicate check + tests | `sonnet` | `core-logic` | data-model (Statuses, rules), taxonomy (Rules) | — | ☐ |
-| **M2 review** | Review the M2 PRs | `haiku` (the reviewer agent runs on Opus) | `pr-reviewer` (Opus) | — | Read the review, merge | ☐ |
-| **M3** | Owner login: password, session cookie, lockout (port from macro-log, state in Postgres), middleware exemptions | `sonnet` | — | architecture (Authentication), data-model (Auth tables) | Set `APP_PASSWORD`, `SESSION_SECRET` in Vercel | ☐ |
-| **M4a** | YouTube adapter: URL parsing incl. `t=`, oEmbed, title/artist derivation + tests with recorded responses | `sonnet` | `core-logic` | architecture (Save from the web app) | — | ☐ |
-| **M4b** | Capture screen: player, mark start/end, optional note, duplicate handling, embed fallback | `sonnet` | `ui-builder` | spec-v1 (Capture), architecture | Test on your phone | ☐ |
-| **M4c** | Entry list and detail, inbox counts, tag review list (against test data), soft delete/restore, JSON export | `sonnet` | `ui-builder` | spec-v1 (Inbox, Browse), data-model (Export) | Test on your phone | ☐ |
-| **M5a** | OAuth 2.1 server: discovery, DCR, PIN consent, tokens (port from macro-log, Postgres tables), cleanup cron | `opusplan` | — | architecture (Authentication), data-model (Auth tables), mcp-server (top) | Set `CRON_SECRET` | ☐ |
-| **M5b** | MCP endpoint, connector switches, read tools | `sonnet` | `mcp-tools` | mcp-server (Tools: Read) | — | ☐ |
-| **M5c** | Change and delete tools, server instructions | `sonnet` | `mcp-tools` | mcp-server (all) | Connect Claude to `/api/mcp`, try voice capture and tagging | ☐ |
-| **M5 review** | Security-focused review of M5 | `haiku` (the reviewer agent runs on Opus) | `pr-reviewer` (Opus) | — | Read the review, merge | ☐ |
-| **M6a** | Filters and text search | `sonnet` | `core-logic` | spec-v1 (Browse and search) | — | ☐ |
-| **M6b** | Upstash Vector adapter, dirty-flag sync, re-sync cron, meaning search in app and `search_highlights` | `sonnet` | `core-logic` | architecture (Search sync), ADR 0003 | Create the Upstash Vector index (hosted embedding model); confirm free-plan embedding first | ☐ |
-| **M7** | MusicBrainz adapter, `match_entry`, artist dedupe, genre layer, confirm-match UI | `sonnet` | `core-logic`, `ui-builder` | architecture (Metadata matching), data-model (artists, artist_genres) | Set `MUSICBRAINZ_CONTACT` | ☐ |
-| **M8** | PWA install, mobile pass, capture speed check | `sonnet` | `ui-builder` | spec-v1 (Acceptance criteria, Non-functional) | Run all 8 acceptance checks on your phone | ☐ |
-| **Each PR** | Bring docs in line with what shipped | any (the agent runs on Haiku) | `docs-sync` | the PR diff | — | — |
+| Slice | Task | Model | Effort | Agents | Read these docs | Human steps | Status |
+|---|---|---|---|---|---|---|---|
+| **M0** | Documentation | — | — | — | — | Review and merge PR #1, turn on branch protection | ☑ |
+| **M1** | Next.js + TS + Tailwind skeleton, `/api/health` returning the `package.json` version, CI (typecheck, lint, test, build), `vercel-build` script; release `v0.1.0` | `sonnet` | low | — | architecture (Stack, Repository layout), CONTRIBUTING | Create the Vercel project from the repo | ☐ |
+| **M2a** | Drizzle schema for all tables, first migration with owner seed, PGlite test harness | `opusplan` | high | `db-schema` | data-model (all), architecture (Environments) | Add Neon via Vercel Marketplace; `DATABASE_URL` appears in Vercel | ☐ |
+| **M2b** | `lib/core`: entries, highlights, status transitions, tag lifecycle, soft delete, duplicate check + tests | `sonnet` | medium | `core-logic` | data-model (Statuses, rules), taxonomy (Rules) | — | ☐ |
+| **M2 review** | Review the M2 PRs | `haiku` (the reviewer agent runs on Opus) | low | `pr-reviewer` (Opus) | — | Read the review, merge | ☐ |
+| **M3** | Owner login: password, session cookie, lockout (port from macro-log, state in Postgres), middleware exemptions | `sonnet` | medium | — | architecture (Authentication), data-model (Auth tables) | Set `APP_PASSWORD`, `SESSION_SECRET` in Vercel | ☐ |
+| **M4a** | YouTube adapter: URL parsing incl. `t=`, oEmbed, title/artist derivation + tests with recorded responses | `sonnet` | medium | `core-logic` | architecture (Save from the web app) | — | ☐ |
+| **M4b** | Capture screen: player, mark start/end, optional note, duplicate handling, embed fallback | `sonnet` | medium | `ui-builder` | spec-v1 (Capture), architecture | Test on your phone | ☐ |
+| **M4c** | Entry list and detail, inbox counts, tag review list (against test data), soft delete/restore, JSON export | `sonnet` | medium | `ui-builder` | spec-v1 (Inbox, Browse), data-model (Export) | Test on your phone | ☐ |
+| **M5a** | OAuth 2.1 server: discovery, DCR, PIN consent, tokens (port from macro-log, Postgres tables), cleanup cron | `opusplan` | high | — | architecture (Authentication), data-model (Auth tables), mcp-server (top) | Set `CRON_SECRET` | ☐ |
+| **M5b** | MCP endpoint, connector switches, read tools | `sonnet` | medium | `mcp-tools` | mcp-server (Tools: Read) | — | ☐ |
+| **M5c** | Change and delete tools, server instructions | `sonnet` | medium | `mcp-tools` | mcp-server (all) | Connect Claude to `/api/mcp`, try voice capture and tagging | ☐ |
+| **M5 review** | Security-focused review of M5 | `haiku` (the reviewer agent runs on Opus) | low | `pr-reviewer` (Opus) | — | Read the review, merge | ☐ |
+| **M6a** | Filters and text search | `sonnet` | low | `core-logic` | spec-v1 (Browse and search) | — | ☐ |
+| **M6b** | Upstash Vector adapter, dirty-flag sync, re-sync cron, meaning search in app and `search_highlights` | `sonnet` | medium | `core-logic` | architecture (Search sync), ADR 0003 | Create the Upstash Vector index (hosted embedding model); confirm free-plan embedding first | ☐ |
+| **M7** | MusicBrainz adapter, `match_entry`, artist dedupe, genre layer, confirm-match UI | `sonnet` | medium | `core-logic`, `ui-builder` | architecture (Metadata matching), data-model (artists, artist_genres) | Set `MUSICBRAINZ_CONTACT` | ☐ |
+| **M8** | PWA install, mobile pass, capture speed check | `sonnet` | low | `ui-builder` | spec-v1 (Acceptance criteria, Non-functional) | Run all 8 acceptance checks on your phone | ☐ |
+| **Each PR** | Bring docs in line with what shipped | any (the agent runs on Haiku) | — | `docs-sync` | the PR diff | — | — |
 
 ### Why the expensive model goes where it does
 

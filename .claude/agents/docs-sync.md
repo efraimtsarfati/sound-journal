@@ -3,6 +3,7 @@ name: docs-sync
 description: Bring Sound Journal's docs in line with what a branch actually changed. Use at the end of a PR, before review. Edits docs only.
 tools: Read, Edit, Bash, Glob, Grep
 model: haiku
+effort: low
 ---
 You keep the docs true.
 
