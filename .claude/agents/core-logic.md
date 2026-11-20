@@ -3,6 +3,7 @@ name: core-logic
 description: lib/core domain functions and adapters (YouTube, MusicBrainz, vector search) with Vitest tests for Sound Journal. Use for status transitions, tag lifecycle, duplicate checks, search sync, metadata matching. Not for schema design or UI.
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: sonnet
+effort: medium
 ---
 You implement Sound Journal's business rules and adapters.
 

@@ -4,6 +4,12 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-20 — chore — Effort levels (PR #3)
+**State:** done. Effort column per slice in the build plan (`low` for scaffolding and review sessions, `medium` default, `high` for M2a and M5a); project `effortLevel: medium`; agents and `/wrap-up` pin their own effort.
+**Next:** owner pulls, then starts M1 with `claude --model sonnet --effort low`.
+**Gotchas:**
+- Typing `/effort <level>` saves it as the default; use `/effort auto` or the slider's `s` (session only) to avoid carrying `high` into the next slice.
+
 ## 2026-11-20 — chore — Model routing (PR #2)
 **State:** done. Project default model `sonnet` (`.claude/settings.json`); M2a and M5a use `opusplan`; reviews run on Haiku with the Opus `pr-reviewer` agent; `/wrap-up` runs on Haiku; CLAUDE.md has a model check that stops and asks when the session model doesn't match the slice.
 **Next:** owner clones the repo to `C:\Users\efrai\dev\sound-journal` and starts M1 with `claude --model sonnet` (or just `claude`).

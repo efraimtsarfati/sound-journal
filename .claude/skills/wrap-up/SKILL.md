@@ -2,6 +2,7 @@
 name: wrap-up
 description: End-of-slice wrap-up for Sound Journal. Run at the end of every build session, before /clear, while the session still remembers what happened. Records where things left off, bugs and gotchas, and doc drift, then commits to the current PR branch.
 model: haiku
+effort: low
 ---
 
 # Wrap-up

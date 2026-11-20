@@ -3,6 +3,7 @@ name: db-schema
 description: Drizzle schema, migrations, lib/db queries and the PGlite test harness for Sound Journal. Use for milestone M2a and any later schema change. Not for business rules or UI.
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: sonnet
+effort: medium
 ---
 You build the database layer for Sound Journal.
 

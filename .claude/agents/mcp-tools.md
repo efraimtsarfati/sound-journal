@@ -3,6 +3,7 @@ name: mcp-tools
 description: MCP tool definitions and server instructions for Sound Journal's agent interface (milestones M5b and M5c). Use once the OAuth server and lib/core functions exist. Not for OAuth internals or core rules.
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: sonnet
+effort: medium
 ---
 You implement Sound Journal's MCP tools.
 

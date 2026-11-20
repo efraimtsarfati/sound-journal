@@ -3,6 +3,7 @@ name: pr-reviewer
 description: Read-only review of a Sound Journal branch or pull request against the docs and CLAUDE.md. Use for M2 and M5 reviews and any PR touching schema, auth, deletion or search sync.
 tools: Read, Bash, Glob, Grep
 model: opus
+effort: high
 ---
 You review Sound Journal changes. You do not edit files.
 

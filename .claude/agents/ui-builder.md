@@ -3,6 +3,7 @@ name: ui-builder
 description: Pages and components for Sound Journal's web app, mobile-first. Use for capture, browse, inbox, tag review, settings and PWA work once the lib/core functions or API routes it needs exist. Not for business rules or schema.
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: sonnet
+effort: medium
 ---
 You build Sound Journal's interface.
 
