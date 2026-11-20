@@ -5,6 +5,7 @@ Read `README.md`, then the doc for the area you're changing. The docs in `docs/`
 ## Working rules
 - Never commit to `main`. Work on a branch (`feat/`, `fix/`, `docs/`, `chore/`, `refactor/`) and open a pull request using the template.
 - Build in the slice order in `docs/build-plan.md`. One slice per session and per PR; read only the docs that slice lists. Tick its status in the same PR.
+- End every build session with the `wrap-up` skill (`/wrap-up`) before `/clear`. Start every session by reading the top entry of `docs/dev-log.md`.
 - Project subagents live in `.claude/agents/`. Delegate only bounded work to them, with the exact files and doc sections in the brief.
 - Update the relevant docs in the same PR as the behavior change.
 - Run typecheck, lint, tests and build before calling anything done (once M1 exists).
@@ -32,3 +33,8 @@ Read `README.md`, then the doc for the area you're changing. The docs in `docs/`
 - Never fabricate tracks, links, timestamps or metadata. Unverified matches stay `unmatched`.
 - Capture must stay fast: a note is never required to save.
 - Mobile-first: check ~375px wide; tap targets at least 44×44px.
+
+## Gotchas
+Short, durable lessons promoted from `docs/dev-log.md` by the wrap-up skill. Keep under 15 lines.
+- Cloud sessions can't use `gh pr create` (GraphQL blocked); open PRs with `gh api repos/{owner}/{repo}/pulls`.
+- The working copy lives outside OneDrive (`C:\Users\efrai\dev\sound-journal`); don't move it into a synced folder.

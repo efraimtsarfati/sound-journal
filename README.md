@@ -28,6 +28,7 @@ Read in this order:
 | [MCP server](docs/mcp-server.md) | The agent interface: tools, server instructions, the inbox flow |
 | [Roadmap](docs/roadmap.md) | Milestones for v1 and how each future feature gets added |
 | [Build plan](docs/build-plan.md) | Milestones split into Claude Code sessions, with the model and agent for each, plus the kickoff prompt |
+| [Dev log](docs/dev-log.md) | Where things left off, gotchas and fixes, newest first |
 | [Engineering workflow](CONTRIBUTING.md) | Branches, pull requests, checks, previews, migrations, definition of done |
 | [Decision records](docs/decisions/) | Why the big choices were made |
 | [Research notes](docs/research.md) | Existing products and platform constraints this design responds to |

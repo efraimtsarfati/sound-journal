@@ -34,19 +34,18 @@ Built-in **Explore** is the right tool for "where is X handled?" searches. It's 
 3. **Point at specific docs.** CLAUDE.md says to read the README and then the doc for the area — don't ask a session to "read everything."
 4. **Run checks locally before pushing.** Each failed CI round trip is a fresh turn of reading logs.
 5. **Delegate only bounded work to subagents**, with the exact files and doc sections in the brief. Small edits stay in the main session.
-6. **Tick the status column below when a slice merges.** The next session reads one table instead of the git history.
+6. **End with `/wrap-up`, before `/clear`.** It ticks the status column, writes a short dev-log entry (where it stopped, gotchas, doc drift) and promotes recurring gotchas to CLAUDE.md. The next session reads one table and one entry instead of the git history.
 
 ## Kickoff prompt (copy, then edit the slice)
 
 ```
-Read CLAUDE.md, README.md and docs/build-plan.md.
+Read CLAUDE.md, README.md, docs/build-plan.md and the top entry of docs/dev-log.md.
 Work on slice <M2a> from docs/build-plan.md.
 Read only the docs that slice lists.
 Start in plan mode: give me the plan, the files you'll create or change,
 and the tests you'll add. Wait for my approval.
 Then implement on a new branch, run typecheck/lint/tests/build,
-open a PR using the template, and update the status column in
-docs/build-plan.md in the same PR. Stop after opening the PR.
+open a PR using the template, then run /wrap-up. Stop after that.
 ```
 
 For review, in a fresh session: `Use the pr-reviewer agent to review PR #<n> against the docs.`
