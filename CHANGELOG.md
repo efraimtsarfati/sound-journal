@@ -6,7 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-11-20
+
 ### Added
 - Project documentation: vision, v1 spec, architecture, data model, taxonomy (with `taxonomy/axes.json`), MCP server design, roadmap, build plan, engineering workflow, decision records and research notes.
 - CI check that validates the taxonomy file.
+- App skeleton (Next.js, TypeScript, Tailwind) with `/api/health`, which returns the running version.
+- CI checks for typecheck, lint, tests and build.
 - Claude Code project agents, the `wrap-up` skill and the dev log.
