@@ -108,7 +108,7 @@ Status: ☐ not started · ◐ in progress · ☑ merged. The last slice of each
 |---|---|---|---|---|---|---|---|
 | **M0** | Documentation | — | — | — | — | Review and merge PR #1, turn on branch protection | ☑ |
 | **M1** | Next.js + TS + Tailwind skeleton, `/api/health` returning the `package.json` version, CI (typecheck, lint, test, build), `vercel-build` script; release `v0.1.0` | `sonnet` | low | — | architecture (Stack, Repository layout), CONTRIBUTING | Create the Vercel project from the repo | ☑ |
-| **M2a** | Drizzle schema for all tables, first migration with owner seed, PGlite test harness | `opusplan` | high | `db-schema` | data-model (all), architecture (Environments) | Add Neon via Vercel Marketplace; `DATABASE_URL` appears in Vercel | ◐ |
+| **M2a** | Drizzle schema for all tables, first migration with owner seed, PGlite test harness | `opusplan` | high | `db-schema` | data-model (all), architecture (Environments) | Add Neon via Vercel Marketplace; `DATABASE_URL` appears in Vercel | ◐ #6 |
 | **M2b** | `lib/core`: entries, highlights, status transitions, tag lifecycle, soft delete, duplicate check + tests | `sonnet` | medium | `core-logic` | data-model (Statuses, rules), taxonomy (Rules) | — | ☐ |
 | **M2 review** | Review the M2 PRs | `haiku` (the reviewer agent runs on Opus) | low | `pr-reviewer` (Opus) | — | Read the review, merge | ☐ |
 | **M3** | Owner login: password, session cookie, lockout (port from macro-log, state in Postgres), middleware exemptions | `sonnet` | medium | — | architecture (Authentication), data-model (Auth tables) | Set `APP_PASSWORD`, `SESSION_SECRET` in Vercel | ☐ |

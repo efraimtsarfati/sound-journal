@@ -4,6 +4,16 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-20 — M2a — Drizzle schema, init migration with owner seed, PGlite harness (PR #6)
+**State:** done. 15 tables, `0000_init` + seed, `getDb()`, PGlite harness, 52 tests; typecheck, lint, test, build pass locally. Migration not yet run against a real Neon DB.
+**Next:** owner adds Neon via Vercel Marketplace (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`) and merges PR #6; confirm `drizzle-kit migrate` works in the Vercel build without `ws` (if not, ask before adding `ws`). Then M2b (`sonnet`, `core-logic`).
+**Gotchas:**
+- Plain `ON CONFLICT DO NOTHING` keeps the target's `added_at`, not the earliest → tag merge uses `DO UPDATE SET added_at = LEAST(...)`.
+- `match_status` check also trips when an invalid status has no mbid → enum-check tests must supply an mbid.
+- Composite FKs are MATCH SIMPLE: NULL `merged_into` passes. Intended.
+**Doc drift:** data-model (decisions, merge pattern, owner name), architecture, CONTRIBUTING, build-plan (M1 marked merged, purge follow-up).
+**Follow-ups:** `highlight_tags` cross-user check in `lib/core` (M2b); check PGlite db is assignable to `Db` type; 30-day purge has no slice.
+
 ## 2026-11-20 — chore — Autopilot and auto-merge (PR #5)
 **State:** done in this PR: `/autopilot` skill, auto-merge policy in CONTRIBUTING and CLAUDE.md, wrap-up enables auto-merge, permission guidance in the build plan, ESLint added to the architecture stack (M1 follow-up).
 **Next:** owner, once: merge this PR; Settings → General → tick **Allow auto-merge** and **Automatically delete head branches**; add **Typecheck, lint, test, build** as a required check in the `protect main` ruleset; install GitHub CLI (`winget install GitHub.cli`) and run `gh auth login`. Then: `claude --model sonnet --effort low` → `/autopilot until M2b`. Vercel project and Neon must exist before M2a (autopilot asks).
