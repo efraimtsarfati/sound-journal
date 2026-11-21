@@ -4,8 +4,13 @@ import { CoreError } from "./errors";
 import { assertTimes, normalizeNote } from "./text";
 
 /** Loads a live highlight (on a live entry) owned by the user, or throws not_found. */
-export async function loadHighlight(db: DbOrTx, userId: string, highlightId: string): Promise<Highlight> {
-  const [row] = await db
+export async function loadHighlight(
+  db: DbOrTx,
+  userId: string,
+  highlightId: string,
+  opts: { lock?: boolean } = {},
+): Promise<Highlight> {
+  const q = db
     .select({ h: highlights })
     .from(highlights)
     .innerJoin(entries, and(eq(entries.id, highlights.entryId), eq(entries.userId, highlights.userId)))
@@ -17,6 +22,7 @@ export async function loadHighlight(db: DbOrTx, userId: string, highlightId: str
         isNull(entries.deletedAt),
       ),
     );
+  const [row] = await (opts.lock ? q.for("update", { of: highlights }) : q);
   if (!row) throw new CoreError("not_found", "Highlight not found.");
   return row.h;
 }
@@ -43,25 +49,29 @@ export async function addHighlight(
   const endSec = input.endSec ?? null;
   assertTimes(startSec, endSec);
   const note = normalizeNote(input.note);
-  const [entry] = await db
-    .select({ id: entries.id })
-    .from(entries)
-    .where(and(eq(entries.id, entryId), eq(entries.userId, userId), isNull(entries.deletedAt)));
-  if (!entry) throw new CoreError("not_found", "Entry not found.");
-  const [row] = await db
-    .insert(highlights)
-    .values({
-      entryId,
-      userId,
-      startSec,
-      endSec,
-      note,
-      status: initialStatus(note),
-      noteUpdatedAt: note === null ? null : new Date(),
-      searchDirty: true,
-    })
-    .returning();
-  return row;
+  // Lock the entry row (soft delete takes the same lock) so the entry can't be deleted mid-insert.
+  return db.transaction(async (tx) => {
+    const [entry] = await tx
+      .select({ id: entries.id })
+      .from(entries)
+      .where(and(eq(entries.id, entryId), eq(entries.userId, userId), isNull(entries.deletedAt)))
+      .for("update");
+    if (!entry) throw new CoreError("not_found", "Entry not found.");
+    const [row] = await tx
+      .insert(highlights)
+      .values({
+        entryId,
+        userId,
+        startSec,
+        endSec,
+        note,
+        status: initialStatus(note),
+        noteUpdatedAt: note === null ? null : new Date(),
+        searchDirty: true,
+      })
+      .returning();
+    return row;
+  });
 }
 
 /**
@@ -75,16 +85,18 @@ export async function setHighlightNote(
   rawNote: string | null,
 ): Promise<Highlight> {
   const note = normalizeNote(rawNote);
-  const current = await loadHighlight(db, userId, highlightId);
-  if (note === current.note) return current;
-  // Cleared -> needs_why. Added or edited -> needs_tags (tagged goes back for review).
-  const status = note === null ? "needs_why" : "needs_tags";
-  const [row] = await db
-    .update(highlights)
-    .set({ note, status, noteUpdatedAt: new Date(), searchDirty: true })
-    .where(and(eq(highlights.id, highlightId), eq(highlights.userId, userId)))
-    .returning();
-  return row;
+  return db.transaction(async (tx) => {
+    const current = await loadHighlight(tx, userId, highlightId, { lock: true });
+    if (note === current.note) return current;
+    // Cleared -> needs_why. Added or edited -> needs_tags (tagged goes back for review).
+    const status = note === null ? "needs_why" : "needs_tags";
+    const [row] = await tx
+      .update(highlights)
+      .set({ note, status, noteUpdatedAt: new Date(), searchDirty: true })
+      .where(and(eq(highlights.id, highlightId), eq(highlights.userId, userId)))
+      .returning();
+    return row;
+  });
 }
 
 /** Soft-deletes a highlight. Refused for the last live highlight of its entry: delete the entry instead. */
