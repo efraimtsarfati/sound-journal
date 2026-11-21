@@ -4,6 +4,7 @@ import { pkceS256, randomToken, sha256Hex } from "../auth/crypto";
 import { mcpResource } from "../auth/oauth-metadata";
 import { oauthClients, oauthCodes, oauthGrants, oauthTokens, type Db } from "../db";
 import { createTestDb, insertUser } from "../db/test-utils";
+import { listConnectedApps, revokeConnectedApp } from "./connector";
 import { CoreError } from "./errors";
 import {
   ACCESS_TTL_SEC,
@@ -13,10 +14,8 @@ import {
   checkAuthorizeRequest,
   exchangeAuthorizationCode,
   issueAuthorizationCode,
-  listGrants,
   refreshAccessToken,
   registerClient,
-  revokeGrant,
   verifyAccessToken,
 } from "./oauth";
 import type { AuthorizeParams } from "./oauth-rules";
@@ -267,6 +266,42 @@ describe("authorization codes", () => {
     expect(results.filter((r) => r.ok)).toHaveLength(1);
   });
 
+  it("reusing a code revokes the tokens issued from it", async () => {
+    const c = await newClient();
+    const { verifier, challenge } = pkce();
+    const code = await getCode(c.id, challenge);
+    const input = { code, clientId: c.id, redirectUri: REDIRECT, codeVerifier: verifier };
+    const first = await exchangeAuthorizationCode(db, input, t0);
+    if (!first.ok) throw new Error("first exchange failed");
+    expect(await verifyAccessToken(db, first.accessToken, t0)).not.toBeNull();
+    expect((await exchangeAuthorizationCode(db, input, plus(5))).ok).toBe(false);
+    expect(await verifyAccessToken(db, first.accessToken, plus(5))).toBeNull();
+    expect((await refreshAccessToken(db, { refreshToken: first.refreshToken, clientId: c.id }, plus(5))).ok).toBe(false);
+    expect(await raw.select().from(oauthGrants).where(eq(oauthGrants.clientId, c.id))).toHaveLength(0);
+  });
+
+  it("reusing a code does not touch a newer grant for the same client", async () => {
+    const c = await newClient();
+    const a = pkce();
+    const code1 = await getCode(c.id, a.challenge);
+    const first = await exchangeAuthorizationCode(db, { code: code1, clientId: c.id, redirectUri: REDIRECT, codeVerifier: a.verifier }, t0);
+    expect(first.ok).toBe(true);
+    const second = await connect(c.id, plus(10)); // replaces the first grant
+    await exchangeAuthorizationCode(db, { code: code1, clientId: c.id, redirectUri: REDIRECT, codeVerifier: a.verifier }, plus(11));
+    expect(await verifyAccessToken(db, second.accessToken, plus(12))).not.toBeNull();
+  });
+
+  it("a code that failed its checks has no grant, so reusing it revokes nothing", async () => {
+    const c = await newClient();
+    const keep = await connect(c.id);
+    const { verifier, challenge } = pkce();
+    const code = await getCode(c.id, challenge);
+    const base = { code, clientId: c.id, redirectUri: REDIRECT };
+    expect((await exchangeAuthorizationCode(db, { ...base, codeVerifier: randomToken() }, t0)).ok).toBe(false);
+    expect((await exchangeAuthorizationCode(db, { ...base, codeVerifier: verifier }, t0)).ok).toBe(false);
+    expect(await verifyAccessToken(db, keep.accessToken, t0)).not.toBeNull();
+  });
+
   it("a wrong verifier burns the code", async () => {
     const c = await newClient();
     const { verifier, challenge } = pkce();
@@ -374,7 +409,7 @@ describe("verifyAccessToken", () => {
   it("a revoked grant stops working", async () => {
     const a = await connect();
     const [g] = await raw.select().from(oauthGrants).where(eq(oauthGrants.clientId, a.clientId));
-    await revokeGrant(db, OWNER_USER_ID, g.id);
+    await revokeConnectedApp(db, OWNER_USER_ID, g.id);
     expect(await verifyAccessToken(db, a.accessToken, t0)).toBeNull();
   });
 });
@@ -387,11 +422,11 @@ describe("listGrants and revokeGrant are user scoped", () => {
     const code = await getCode(c.id, challenge, t0, other.id);
     const r = await exchangeAuthorizationCode(db, { code, clientId: c.id, redirectUri: REDIRECT, codeVerifier: verifier }, t0);
     expect(r.ok).toBe(true);
-    const mine = await listGrants(db, other.id);
-    expect(mine.map((g) => g.clientName)).toEqual(["Scoped"]);
-    expect((await listGrants(db, OWNER_USER_ID)).some((g) => g.clientId === c.id)).toBe(false);
-    await expect(revokeGrant(db, OWNER_USER_ID, mine[0].id)).rejects.toMatchObject({ code: "not_found" });
-    await revokeGrant(db, other.id, mine[0].id);
-    expect(await listGrants(db, other.id)).toHaveLength(0);
+    const mine = await listConnectedApps(db, other.id);
+    expect(mine.map((g) => g.name)).toEqual(["Scoped"]);
+    expect((await listConnectedApps(db, OWNER_USER_ID)).some((g) => g.name === "Scoped")).toBe(false);
+    await expect(revokeConnectedApp(db, OWNER_USER_ID, mine[0].grantId)).rejects.toMatchObject({ code: "not_found" });
+    await revokeConnectedApp(db, other.id, mine[0].grantId);
+    expect(await listConnectedApps(db, other.id)).toHaveLength(0);
   });
 });

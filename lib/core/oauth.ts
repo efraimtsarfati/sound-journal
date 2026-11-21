@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gt, inArray, notExists, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { pkceS256, randomToken, safeEqual, sha256Hex } from "../auth/crypto";
 import { mcpResource } from "../auth/oauth-metadata";
 import {
@@ -193,11 +193,20 @@ export async function exchangeAuthorizationCode(
 ): Promise<TokenResult> {
   const invalid: TokenResult = { ok: false, error: "invalid_grant" };
   return db.transaction(async (tx): Promise<TokenResult> => {
+    const hash = sha256Hex(input.code);
+    // Consume by marking the row (it stays as a tombstone until it expires). A concurrent second
+    // exchange waits for this row lock, then matches nothing.
     const [row] = await tx
-      .delete(oauthCodes)
-      .where(eq(oauthCodes.codeHash, sha256Hex(input.code)))
+      .update(oauthCodes)
+      .set({ consumedAt: now })
+      .where(and(eq(oauthCodes.codeHash, hash), isNull(oauthCodes.consumedAt)))
       .returning();
-    if (!row) return invalid;
+    if (!row) {
+      // Reuse of a code that was already exchanged (OAuth 2.1): revoke what it produced.
+      const [spent] = await tx.select().from(oauthCodes).where(eq(oauthCodes.codeHash, hash));
+      if (spent?.grantId) await tx.delete(oauthGrants).where(eq(oauthGrants.id, spent.grantId));
+      return invalid;
+    }
     if (row.expiresAt <= now) return invalid;
     if (row.clientId !== input.clientId) return invalid;
     if (row.redirectUri !== input.redirectUri) return invalid;
@@ -213,6 +222,7 @@ export async function exchangeAuthorizationCode(
       .insert(oauthGrants)
       .values({ clientId: row.clientId, userId: row.userId })
       .returning();
+    await tx.update(oauthCodes).set({ grantId: grant.id }).where(eq(oauthCodes.codeHash, hash));
     return { ok: true, ...(await insertTokenPair(tx, grant.id, now)) };
   });
 }
@@ -280,37 +290,4 @@ export async function verifyAccessToken(
     clientId: row.client.id,
     clientName: row.client.name,
   };
-}
-
-export type GrantSummary = {
-  id: string;
-  clientId: string;
-  clientName: string;
-  createdAt: Date;
-  lastUsedAt: Date | null;
-};
-
-export async function listGrants(db: Db, userId: string): Promise<GrantSummary[]> {
-  const rows = await db
-    .select({
-      id: oauthGrants.id,
-      clientId: oauthGrants.clientId,
-      clientName: oauthClients.name,
-      createdAt: oauthGrants.createdAt,
-      lastUsedAt: oauthGrants.lastUsedAt,
-    })
-    .from(oauthGrants)
-    .innerJoin(oauthClients, eq(oauthGrants.clientId, oauthClients.id))
-    .where(eq(oauthGrants.userId, userId))
-    .orderBy(desc(oauthGrants.createdAt));
-  return rows;
-}
-
-/** Deletes the grant (and so every token it holds). Scoped by user. */
-export async function revokeGrant(db: Db, userId: string, grantId: string): Promise<void> {
-  const rows = await db
-    .delete(oauthGrants)
-    .where(and(eq(oauthGrants.id, grantId), eq(oauthGrants.userId, userId)))
-    .returning({ id: oauthGrants.id });
-  if (rows.length === 0) throw new CoreError("not_found", "No such connected app.");
 }

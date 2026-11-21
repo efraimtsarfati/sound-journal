@@ -1,5 +1,6 @@
 import { sql, type InferInsertModel, type InferSelectModel } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   foreignKey,
@@ -280,6 +281,9 @@ export const oauthCodes = pgTable(
     codeChallenge: text("code_challenge").notNull(),
     redirectUri: text("redirect_uri").notNull(),
     expiresAt: ts("expires_at").notNull(),
+    /** Set when the code is exchanged. The row stays until `expires_at` as a tombstone: presenting the code again revokes `grant_id`. */
+    consumedAt: ts("consumed_at"),
+    grantId: uuid("grant_id").references((): AnyPgColumn => oauthGrants.id, { onDelete: "set null" }),
   },
   (t) => [index("oauth_codes_expires_at_idx").on(t.expiresAt)],
 );

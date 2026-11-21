@@ -12,7 +12,8 @@ import {
   softDeleteEntry,
   softDeleteHighlight,
   updateHighlight,
-  getConnectorSettings,
+  assertConnectorAllows,
+  type ConnectorNeed,
   getEntryForAgent,
   getTaxonomy,
   listEntriesForAgent,
@@ -26,13 +27,7 @@ import type { fetchOEmbed } from "../sources/youtube";
 
 export const MCP_SERVER_NAME = "sound-journal";
 
-type Need = "read" | "changes" | "deletes";
-
-const SWITCH_NAME = {
-  read: "Connector -> Enabled",
-  changes: "Connector -> Allow changes",
-  deletes: "Connector -> Allow deletes",
-} as const;
+type Need = ConnectorNeed;
 
 function refusal(text: string): CallToolResult {
   return { content: [{ type: "text", text }], isError: true };
@@ -118,19 +113,7 @@ export function createMcpServer(
   /** Runs `fn` only when the switches allow it; a CoreError becomes a readable refusal. */
   async function guarded(need: Need, fn: () => Promise<CallToolResult>): Promise<CallToolResult> {
     try {
-      const s = await getConnectorSettings(db, userId);
-      if (!s.enabled) {
-        return refusal(`The Sound Journal connector is switched off. Ask the user to turn on "${SWITCH_NAME.read}" in the web app settings.`);
-      }
-      if (need === "changes" && !s.allowChanges) {
-        return refusal(`Changes through the connector are switched off. Ask the user to turn on "${SWITCH_NAME.changes}" in the web app settings.`);
-      }
-      if (need === "deletes" && !s.allowChanges) {
-        return refusal(`Deleting needs changes to be allowed first. Ask the user to turn on "${SWITCH_NAME.changes}" in the web app settings.`);
-      }
-      if (need === "deletes" && !s.allowDeletes) {
-        return refusal(`Deleting through the connector is switched off. Ask the user to turn on "${SWITCH_NAME.deletes}" in the web app settings.`);
-      }
+      await assertConnectorAllows(db, userId, need);
       return await fn();
     } catch (e) {
       if (e instanceof CoreError) return refusal(e.message);

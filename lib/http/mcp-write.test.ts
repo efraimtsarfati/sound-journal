@@ -78,9 +78,20 @@ function rpc(method: string, params: unknown) {
 }
 
 /** Stands in for YouTube's oEmbed: ids starting MISSING are 404, PRIVATE are 401, the rest exist. */
-const fakeFetch = async (input: string) => {
+const seenSignals: (AbortSignal | undefined)[] = [];
+const fakeFetch = async (input: string, init?: { signal?: AbortSignal }) => {
   const id = /v%3D([^&]+)/.exec(input)?.[1] ?? "";
-  const status = id.startsWith("MISSING") ? 404 : id.startsWith("PRIVATE") ? 401 : 200;
+  seenSignals.push(init?.signal);
+  if (id.startsWith("NETDOWN")) throw new Error("network down");
+  const status = id.startsWith("MISSING")
+    ? 404
+    : id.startsWith("PRIVATE")
+      ? 401
+      : id.startsWith("FORBID")
+        ? 403
+        : id.startsWith("SERVERR")
+          ? 503
+          : 200;
   return {
     ok: status === 200,
     status,
@@ -177,6 +188,26 @@ describe("change tools", () => {
     const [psrc] = await db.select().from(entrySources).where(eq(entrySources.externalId, "PRIVATExxx1"));
     expect(psrc.rawTitle).toBeNull();
     expect((await call("add_entry", { url: yt("PRIVATExxx2") })).isError).toBe(true);
+  });
+
+  it("add_entry: 401/403 keep the agent title; 404 and every unverifiable result (5xx, network error) are refused", async () => {
+    const forbid = await call("add_entry", { url: yt("FORBIDxxxx1"), title: "Embedding Off" });
+    expect(forbid.isError).toBeUndefined();
+    for (const id of ["SERVERRxxx1", "NETDOWNxxx1"]) {
+      const r = await call("add_entry", { url: yt(id), title: "Has A Title" });
+      expect(r.isError, id).toBe(true);
+      expect(r.content[0].text, id).toMatch(/couldn't verify the video with YouTube, try again later/i);
+      expect((await call("get_entry", { url: yt(id) })).isError, id).toBe(true);
+    }
+  });
+
+  it("add_entry gives oEmbed an abort signal, and skips oEmbed for a link that is already saved", async () => {
+    seenSignals.length = 0;
+    await call("add_entry", { url: yt("SIGNALxxxx1"), title: "Signal Song" });
+    expect(seenSignals).toHaveLength(1);
+    expect(seenSignals[0]).toBeInstanceOf(AbortSignal);
+    await call("add_entry", { url: yt("SIGNALxxxx1"), highlights: [{ note: "again" }] });
+    expect(seenSignals).toHaveLength(1);
   });
 
   it("add_entry matches artists by normalized name (accents, punctuation, leading The) and only those without an MBID", async () => {

@@ -1,5 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { oauthClients, oauthGrants, settings, type DbOrTx } from "../db";
+import { getConnectorSettings } from "./agent-read";
 import { DEFAULT_TIME_ZONE } from "./dates";
 import { CoreError } from "./errors";
 
@@ -51,4 +52,32 @@ export async function revokeConnectedApp(db: DbOrTx, userId: string, grantId: st
     .where(and(eq(oauthGrants.id, grantId), eq(oauthGrants.userId, userId)))
     .returning({ id: oauthGrants.id });
   if (gone.length === 0) throw new CoreError("not_found", "Connected app not found.");
+}
+
+export type ConnectorNeed = "read" | "changes" | "deletes";
+
+export const CONNECTOR_SWITCH_NAME = {
+  read: "Connector -> Enabled",
+  changes: "Connector -> Allow changes",
+  deletes: "Connector -> Allow deletes",
+} as const;
+
+/**
+ * The connector switch rules (docs/mcp-server.md): read needs `enabled`; changes (including
+ * `restore_deleted`) need `enabled` and `allowChanges`; deletes need `enabled`, `allowChanges`
+ * and `allowDeletes`. Throws a CoreError that names the switch to turn on.
+ */
+export async function assertConnectorAllows(db: DbOrTx, userId: string, need: ConnectorNeed): Promise<void> {
+  const s = await getConnectorSettings(db, userId);
+  if (!s.enabled) {
+    throw new CoreError("invalid_state", `The Sound Journal connector is switched off. Ask the user to turn on "${CONNECTOR_SWITCH_NAME.read}" in the web app settings.`);
+  }
+  if (need === "read") return;
+  if (!s.allowChanges) {
+    const why = need === "deletes" ? "Deleting needs changes to be allowed first" : "Changes through the connector are switched off";
+    throw new CoreError("invalid_state", `${why}. Ask the user to turn on "${CONNECTOR_SWITCH_NAME.changes}" in the web app settings.`);
+  }
+  if (need === "deletes" && !s.allowDeletes) {
+    throw new CoreError("invalid_state", `Deleting through the connector is switched off. Ask the user to turn on "${CONNECTOR_SWITCH_NAME.deletes}" in the web app settings.`);
+  }
 }
