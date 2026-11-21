@@ -1,7 +1,7 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { artists, entries, entryArtists, highlights, type Db, type Entry, type Highlight } from "../db";
 import { fetchOEmbed, parseYouTubeUrl, YOUTUBE_SOURCE_TYPE, youtubeWatchUrl, YouTubeError, deriveTitleArtist } from "../sources/youtube";
-import { addEntry, findDuplicateEntry } from "./entries";
+import { addEntry, findDuplicateEntry, lockSource } from "./entries";
 import { CoreError } from "./errors";
 import { addHighlight, initialStatus, loadHighlight, type HighlightInput } from "./highlights";
 import { assertTimes, normalizeNote } from "./text";
@@ -69,52 +69,56 @@ export async function addEntryForAgent(
     throw new CoreError("invalid_input", "original_release_year must be a four-digit year.");
   }
 
-  const existing = await findDuplicateEntry(db, userId, YOUTUBE_SOURCE_TYPE, parsed.videoId);
-  if (existing) {
-    const added: Highlight[] = [];
-    for (const h of hls) added.push(await addHighlight(db, userId, existing.id, h));
-    const hasMeta = Boolean(input.title?.trim() || input.album || input.originalReleaseYear != null || input.artists?.length);
-    const ignored = hasMeta
-      ? ["title, artists, album and year (the entry already exists; they were not changed)"]
-      : [];
-    return { created: false, entry: existing, highlights: added, ignored };
-  }
-
-  let title = input.title?.trim() ?? "";
-  let rawTitle: string | null = null;
-  let rawAuthor: string | null = null;
-  if (title === "") {
-    try {
-      const o = await fetchOEmbed(parsed.videoId, deps);
-      rawTitle = o.rawTitle;
-      rawAuthor = o.rawChannel;
-      title = deriveTitleArtist(o.rawTitle, o.rawChannel ?? "").title.trim();
-    } catch (e) {
-      if (!(e instanceof YouTubeError)) throw e;
+  // One transaction (holding the source lock) so a failure leaves nothing partial and a retry can't double-save.
+  return db.transaction(async (tx): Promise<AgentAddResult> => {
+    await lockSource(tx, userId, YOUTUBE_SOURCE_TYPE, parsed.videoId);
+    const existing = await findDuplicateEntry(tx, userId, YOUTUBE_SOURCE_TYPE, parsed.videoId);
+    if (existing) {
+      const added: Highlight[] = [];
+      for (const h of hls) added.push(await addHighlight(tx, userId, existing.id, h));
+      const hasMeta = Boolean(input.title?.trim() || input.album || input.originalReleaseYear != null || input.artists?.length);
+      const ignored = hasMeta
+        ? ["title, artists, album and year (the entry already exists; they were not changed)"]
+        : [];
+      return { created: false, entry: existing, highlights: added, ignored };
     }
+
+    let title = input.title?.trim() ?? "";
+    let rawTitle: string | null = null;
+    let rawAuthor: string | null = null;
     if (title === "") {
-      throw new CoreError("invalid_input", "Could not read a title from YouTube. Pass the song's clean `title`.");
+      try {
+        const o = await fetchOEmbed(parsed.videoId, deps);
+        rawTitle = o.rawTitle;
+        rawAuthor = o.rawChannel;
+        title = deriveTitleArtist(o.rawTitle, o.rawChannel ?? "").title.trim();
+      } catch (e) {
+        if (!(e instanceof YouTubeError)) throw e;
+      }
+      if (title === "") {
+        throw new CoreError("invalid_input", "Could not read a title from YouTube. Pass the song's clean `title`.");
+      }
     }
-  }
 
-  const [first, ...rest] = hls;
-  const result = await addEntry(db, userId, {
-    title,
-    album: input.album ?? null,
-    originalReleaseYear: input.originalReleaseYear ?? null,
-    source: { type: "youtube", externalId: parsed.videoId, url: youtubeWatchUrl(parsed.videoId), rawTitle, rawAuthor },
-    highlight: first,
+    const [first, ...rest] = hls;
+    const result = await addEntry(tx, userId, {
+      title,
+      album: input.album ?? null,
+      originalReleaseYear: input.originalReleaseYear ?? null,
+      source: { type: "youtube", externalId: parsed.videoId, url: youtubeWatchUrl(parsed.videoId), rawTitle, rawAuthor },
+      highlight: first,
+    });
+    if (result.duplicate) {
+      // Another saver won the race; add everything to their entry.
+      const added: Highlight[] = [];
+      for (const h of hls) added.push(await addHighlight(tx, userId, result.duplicate.id, h));
+      return { created: false, entry: result.duplicate, highlights: added, ignored: [] };
+    }
+    const added: Highlight[] = [result.highlight];
+    for (const h of rest) added.push(await addHighlight(tx, userId, result.entry.id, h));
+    if (input.artists?.length) await attachArtists(tx, result.entry.id, input.artists);
+    return { created: true, entry: result.entry, highlights: added, ignored: [] };
   });
-  if (result.duplicate) {
-    // Another saver won the race; add everything to their entry.
-    const added: Highlight[] = [];
-    for (const h of hls) added.push(await addHighlight(db, userId, result.duplicate.id, h));
-    return { created: false, entry: result.duplicate, highlights: added, ignored: [] };
-  }
-  const added: Highlight[] = [result.highlight];
-  for (const h of rest) added.push(await addHighlight(db, userId, result.entry.id, h));
-  if (input.artists?.length) await attachArtists(db, result.entry.id, input.artists);
-  return { created: true, entry: result.entry, highlights: added, ignored: [] };
 }
 
 export type HighlightPatch = {

@@ -263,6 +263,62 @@ describe("change tools", () => {
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
   });
+
+  it("a database error while reading the connector switches is generic too", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const realSelect = db.select.bind(db) as (...a: unknown[]) => any;
+    const sel = vi.spyOn(db, "select").mockImplementation(((...a: unknown[]) => {
+      const b = realSelect(...a);
+      const from = b.from.bind(b);
+      b.from = (table: unknown) => {
+        if (table === settings) throw new Error('select "mcp_enabled" from "settings" failed: secret detail');
+        return from(table);
+      };
+      return b;
+    }) as any);
+    const r = await call("list_inbox");
+    sel.mockRestore();
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toBe("Something went wrong on the server; try again.");
+    expect(JSON.stringify(r)).not.toContain("secret detail");
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("add_entry is atomic: a failing later step leaves nothing saved, and a retry works", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const realTransaction = (db as any).transaction.bind(db);
+    // Fail the artist link, the last step, after the entry and highlights were written in the transaction.
+    const ins = vi.spyOn(db as any, "transaction").mockImplementation(((fn: (tx: any) => Promise<unknown>) =>
+      realTransaction((tx: any) =>
+        fn(
+          new Proxy(tx, {
+            get(target, prop) {
+              if (prop === "insert") {
+                return (table: unknown) => {
+                  if (table === entryArtists) throw new Error("boom: secret detail");
+                  return target.insert(table);
+                };
+              }
+              const v = Reflect.get(target, prop, target);
+              return typeof v === "function" ? v.bind(target) : v;
+            },
+          }),
+        ),
+      )) as any);
+    const url = yt("ATOMICxxxx1");
+    const r = await call("add_entry", { url, title: "Atomic Song", artists: ["Atomic Band"], highlights: [{ note: "a" }, { note: "b" }] });
+    ins.mockRestore();
+    spy.mockRestore();
+    expect(r.isError).toBe(true);
+    expect((await call("get_entry", { url })).isError).toBe(true);
+    const rows = await db.select().from(entrySources).where(eq(entrySources.externalId, "ATOMICxxxx1"));
+    expect(rows).toHaveLength(0);
+    const retry = await call("add_entry", { url, title: "Atomic Song", artists: ["Atomic Band"], highlights: [{ note: "a" }, { note: "b" }] });
+    expect(retry.isError).toBeUndefined();
+    expect(retry.structuredContent!.created).toBe(true);
+    expect(retry.structuredContent!.highlights).toHaveLength(2);
+  });
 });
 
 describe("search dates use settings.time_zone", () => {
