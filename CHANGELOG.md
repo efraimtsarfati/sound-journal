@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-21
+
+### Added
+- Journal home (`/`): inbox counts ("N need a why, N need tags") and the entry list, newest first, with each highlight's status, note and tags.
+- Entry detail (`/entries/<id>`): each highlight plays from its timestamp, remove a tag from a highlight, delete a highlight or the whole entry, add another highlight.
+- Tag review (`/tags`): approve, reject, rename or merge the tags your agent proposed.
+- Deleted (`/deleted`): restore a deleted entry. If you've since saved the same video again, it offers to move the old highlights onto the new entry instead.
+- JSON export (`/api/export`): all your entries, highlights and tags, including deleted ones not yet purged.
+
 ### Added
 - Capture screen (`/capture`): paste a YouTube link, watch it in the page, mark a start and end while it plays (or type them), add an optional note, and save. A link already in the journal adds a highlight to the existing entry. Videos that can't be embedded show a link to YouTube and typed times.
 
