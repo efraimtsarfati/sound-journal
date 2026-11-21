@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { pkceS256, randomToken } from "../auth/crypto";
-import { MAX_FAILS, clearFailures, LOGIN_KEY } from "../core";
-import type { Db } from "../db";
+import { MAX_FAILS } from "../core";
+import { authAttempts, type Db } from "../db";
 import { createTestDb } from "../db/test-utils";
 import { preflight } from "./cors";
 import { handleCleanup } from "./cron";
@@ -20,7 +20,9 @@ beforeAll(async () => {
   close = t.close;
 });
 afterAll(() => close());
-beforeEach(() => clearFailures(db, LOGIN_KEY));
+beforeEach(async () => {
+  await db.delete(authAttempts);
+});
 
 function registerReq(body: unknown, raw = false) {
   return new Request(`${ORIGIN}/api/oauth/register`, {
@@ -166,6 +168,25 @@ describe("end to end", () => {
   });
 });
 
+describe("register rate limit", () => {
+  it("allows 10 registrations per IP per hour, then 429; another IP is unaffected", async () => {
+    const req = (ip: string) =>
+      new Request(`${ORIGIN}/api/oauth/register`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": ip },
+        body: JSON.stringify({ client_name: "A", redirect_uris: [REDIRECT] }),
+      });
+    const now = new Date("2026-11-21T12:00:00Z");
+    for (let i = 0; i < 10; i++) expect((await handleRegister(req("198.51.100.1"), db, now)).status).toBe(201);
+    const limited = await handleRegister(req("198.51.100.1"), db, now);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("3600");
+    expect((await handleRegister(req("198.51.100.2"), db, now)).status).toBe(201);
+    const later = new Date("2026-11-21T13:00:01Z");
+    expect((await handleRegister(req("198.51.100.1"), db, later)).status).toBe(201);
+  });
+});
+
 describe("consent", () => {
   it("a wrong password goes back to the form with auth_error and no code", async () => {
     const { client_id } = await register();
@@ -204,6 +225,35 @@ describe("consent", () => {
     expect(loc.searchParams.get("error")).toBe("access_denied");
     expect(loc.searchParams.get("state")).toBe("xyz");
     expect(loc.searchParams.get("iss")).toBe(ORIGIN);
+  });
+
+  it("an untrusted client or redirect gets an HTML error page; only a known client gets a Return to app link", async () => {
+    const { client_id } = await register();
+    const challenge = pkceS256(randomToken());
+    const mismatch = await handleConsent(
+      consentReq(authFields(client_id, challenge, { redirect_uri: "https://evil.example.test/cb" })),
+      db,
+      ENV,
+    );
+    expect(mismatch.headers.get("content-type")).toContain("text/html");
+    const html = await mismatch.text();
+    expect(html).toContain("Return to app (agent.example.test)");
+    expect(html).toContain(`href="${REDIRECT}"`);
+    expect(html).not.toContain("evil.example.test");
+    const unknown = await handleConsent(consentReq(authFields("nope", challenge)), db, ENV);
+    expect(await unknown.text()).not.toContain("Return to app");
+  });
+
+  it("counts wrong passwords per client IP: another IP is not locked", async () => {
+    const { client_id } = await register();
+    const challenge = pkceS256(randomToken());
+    const from = (ip: string, password: string) =>
+      handleConsent(consentReq(authFields(client_id, challenge, { password }), { "x-forwarded-for": ip }), db, ENV);
+    for (let i = 0; i < MAX_FAILS; i++) await from("203.0.113.5, 10.0.0.1", "nope");
+    const locked = await from("203.0.113.5", "correct horse");
+    expect(new URL(locked.headers.get("location")!).searchParams.get("auth_error")).toBe("locked");
+    const other = await from("203.0.113.6", "correct horse");
+    expect(new URL(other.headers.get("location")!).searchParams.has("code")).toBe(true);
   });
 
   it("unknown client or mismatched redirect is a 400, never a redirect", async () => {

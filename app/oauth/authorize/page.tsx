@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { appOrigin } from "@/lib/auth/oauth-metadata";
 import { buildRedirect, checkAuthorizeRequest, readAuthorizeParams } from "@/lib/core";
 import { getDb } from "@/lib/db";
+import { hostOf } from "@/lib/http/oauth";
 
 export const metadata = { title: "Connect an app · Sound Journal" };
 export const dynamic = "force-dynamic";
@@ -34,7 +35,20 @@ export default async function AuthorizePage({
   const p = readAuthorizeParams(sp);
   const check = await checkAuthorizeRequest(getDb(), p, origin);
   if (!check.ok && !check.redirect) {
-    return <Notice title="Cannot connect">This connection request is not valid ({check.error}). Go back to the app and try again.</Notice>;
+    const returnHost = hostOf(check.returnUri);
+    return (
+      <Notice title="Cannot connect">
+        This connection request is not valid ({check.error}). Nothing was sent to the app.
+        {check.returnUri && returnHost ? (
+          <a
+            href={check.returnUri}
+            className="mt-4 flex min-h-11 items-center underline"
+          >
+            Return to app ({returnHost})
+          </a>
+        ) : null}
+      </Notice>
+    );
   }
   if (!check.ok) {
     redirect(

@@ -213,7 +213,7 @@ The macro-log pattern stores auth state in Redis with expiry times. Here it live
 | `oauth_codes` | Authorization codes (60-second life) | `code_hash` PK, `client_id`, `user_id`, `code_challenge`, `redirect_uri`, `expires_at` |
 | `oauth_grants` | One per connected app; deleting it revokes all its tokens | `id`, `client_id`, `user_id`, `created_at`, `last_used_at` |
 | `oauth_tokens` | Access (1 hour) and refresh (90 days) tokens, stored only as SHA-256 hashes | `token_hash` PK, `grant_id`, `kind` (`access`/`refresh`), `expires_at`, `used_at` (refresh rotation) |
-| `auth_attempts` | Failed password attempts for lockout | `key` (just `login`: shared by the login form and the OAuth consent page, there is no `pin` key), `fails`, `locked_until` |
+| `auth_attempts` | Failed-attempt counters and lockouts, no schema change in M5d | `key`, `fails`, `locked_until`. Keys: `login:ip:<ip>` (per-IP lockout, shared by the login form and the consent page; `locked_until` is the lock); `login:global:<hour>` and `register:ip:<ip>:<hour>` (fixed-window counters, never read as locks; `locked_until` is just the window end so cleanup can delete them); legacy `login` (used only when no IP is known). There is no `pin` key |
 | `settings` | Per-user settings, including connector switches and time zone | `user_id` PK, `mcp_enabled`, `mcp_allow_changes`, `mcp_allow_deletes`, `time_zone` (default `America/Toronto`) |
 
 ## Constraints and defaults (decided in M2a)

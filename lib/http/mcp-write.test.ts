@@ -96,7 +96,9 @@ describe("server instructions", () => {
     const body = (await res.json()) as { result: { instructions: string } };
     expect(body.result.instructions).toContain("call `list_inbox`");
     expect(body.result.instructions).toContain("Never tag a highlight with no note");
-    expect(body.result.instructions).toContain("8. Match entries to MusicBrainz");
+    // rule 8 names match_entry, which is not registered until M7
+    expect(body.result.instructions).not.toContain("match_entry");
+    expect(body.result.instructions).not.toContain("8. Match entries");
   });
 });
 
@@ -250,6 +252,18 @@ describe("change tools", () => {
     await t.db.update(settings).set({ mcpAllowDeletes: false }).where(eq(settings.userId, OWNER_USER_ID));
     expect((await call("restore_deleted", { entry_id: gone.structuredContent!.entry.id })).isError).toBeUndefined();
     await t.db.update(settings).set({ mcpAllowDeletes: true }).where(eq(settings.userId, OWNER_USER_ID));
+  });
+
+  it("delete tools also need allowChanges", async () => {
+    await t.db.update(settings).set({ mcpAllowChanges: false }).where(eq(settings.userId, OWNER_USER_ID));
+    const a = await call("delete_highlight", { highlight_id: hlId });
+    const b = await call("delete_entry", { entry_id: entryId, confirm: true });
+    for (const r of [a, b]) {
+      expect(r.isError).toBe(true);
+      expect(r.content[0].text).toContain("Allow changes");
+    }
+    await t.db.update(settings).set({ mcpAllowChanges: true }).where(eq(settings.userId, OWNER_USER_ID));
+    expect((await call("get_entry", { entry_id: entryId })).isError).toBeUndefined();
   });
 
   it("unexpected failures return a generic message and are logged, never raw SQL", async () => {

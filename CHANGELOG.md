@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- Settings page with the connector switches (Connector, Allow changes, Allow deletes) and the list of connected apps, each with a Revoke button.
+
+### Changed
+- Wrong-password lockout is now per client IP (5 fails, 15 minutes) for both the login page and the connect-an-app page, with a global slow-down (never a lockout) after 50 wrong passwords in an hour.
+- App registration is limited to 10 per IP per hour.
+- Deleting through the connector now also needs "Allow changes".
+- Connect-an-app errors for an unknown app or a mismatched return address show an error page instead of redirecting.
+- Agents are no longer told about `match_entry` (rule 8) until that tool exists.
+
 ### Fixed
 - Connecting an agent failed with "Cross-origin request": the consent page sent `Referrer-Policy: no-referrer`, so browsers posted the approval form with `Origin: null`. It now uses `same-origin`.
 

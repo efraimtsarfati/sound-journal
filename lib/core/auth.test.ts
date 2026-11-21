@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb } from "../db/test-utils";
 import {
+  GLOBAL_DELAY_MS,
   LOCK_SECONDS,
   LOGIN_KEY,
   MAX_FAILS,
@@ -121,6 +122,7 @@ describe("attemptLogin row handling", () => {
     // Simulate a concurrent delete between the insert and the locking select.
     const racing = {
       ...db,
+      select: db.select.bind(db),
       transaction: (fn: Parameters<Db["transaction"]>[0]) =>
         db.transaction(async (tx) => {
           const realSelect = tx.select.bind(tx);
@@ -146,5 +148,45 @@ describe("attemptLogin row handling", () => {
         }),
     } as unknown as Db;
     expect(await attemptLogin(racing, "pw", "pw", now)).toEqual({ ok: true });
+  });
+});
+
+describe("per-IP lockout and the global backstop", () => {
+  const now = new Date("2026-11-21T12:00:00Z");
+  const sleeps: number[] = [];
+  const sleep = async (ms: number) => void sleeps.push(ms);
+  beforeEach(async () => {
+    sleeps.length = 0;
+    await db.delete(authAttempts);
+  });
+
+  it("locks one IP after 5 fails and leaves another IP free", async () => {
+    for (let i = 0; i < MAX_FAILS; i++) await attemptLogin(db, "pw", "bad", now, { ip: "203.0.113.5", sleep });
+    expect(await attemptLogin(db, "pw", "pw", now, { ip: "203.0.113.5", sleep })).toMatchObject({
+      ok: false,
+      reason: "locked",
+    });
+    expect(await attemptLogin(db, "pw", "pw", now, { ip: "203.0.113.9", sleep })).toEqual({ ok: true });
+    expect(sleeps).toEqual([]);
+  });
+
+  it("after 50 wrong passwords in an hour every attempt is delayed, but the right password still works", async () => {
+    for (let i = 0; i < 50; i++) {
+      await attemptLogin(db, "pw", "bad", now, { ip: `198.51.100.${i}`, sleep });
+    }
+    expect(sleeps).toEqual([]);
+    expect(await attemptLogin(db, "pw", "pw", now, { ip: "192.0.2.1", sleep })).toEqual({ ok: true });
+    expect(sleeps).toEqual([GLOBAL_DELAY_MS]);
+    // the next hour starts clean
+    const later = new Date(now.getTime() + 3600_000);
+    expect(await attemptLogin(db, "pw", "pw", later, { ip: "192.0.2.1", sleep })).toEqual({ ok: true });
+    expect(sleeps).toEqual([GLOBAL_DELAY_MS]);
+  });
+
+  it("refusals while locked do not count toward the backstop", async () => {
+    for (let i = 0; i < MAX_FAILS; i++) await attemptLogin(db, "pw", "bad", now, { ip: "203.0.113.5", sleep });
+    for (let i = 0; i < 60; i++) await attemptLogin(db, "pw", "bad", now, { ip: "203.0.113.5", sleep });
+    await attemptLogin(db, "pw", "pw", now, { ip: "203.0.113.7", sleep });
+    expect(sleeps).toEqual([]);
   });
 });

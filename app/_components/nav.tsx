@@ -17,6 +17,9 @@ export function Nav() {
       <Link href="/deleted" className={link}>
         Deleted
       </Link>
+      <Link href="/settings" className={link}>
+        Settings
+      </Link>
       <a href="/api/export" className={link}>
         Export
       </a>
