@@ -47,7 +47,7 @@ In v1 the agent assigns tags and the owner reviews them (approve, rename, merge,
 3. **One quality per tag, one axis per tag.** `touching` and `floating` are two tags, not one.
 4. **Offer the precise term.** If the user describes a technique in plain words, the precise term is the right tag, and the agent should tell the user what it means. This is how the journal builds the user's vocabulary.
 5. **New tags are `proposed`** until the user approves them.
-6. **Format:** lowercase, 1–4 words, hyphens allowed, no other punctuation.
+6. **Format:** lowercase, 1–4 words, hyphens allowed, no other punctuation. Workflow-status words (`needs_why`, `needs_tags`, `tagged`, in any spelling) are refused as tag names.
 
 ## How the vocabulary converges
 

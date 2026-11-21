@@ -180,7 +180,10 @@ describe("register rate limit", () => {
     for (let i = 0; i < 10; i++) expect((await handleRegister(req("198.51.100.1"), db, now)).status).toBe(201);
     const limited = await handleRegister(req("198.51.100.1"), db, now);
     expect(limited.status).toBe(429);
-    expect(limited.headers.get("retry-after")).toBe("3600");
+    expect(limited.headers.get("retry-after")).toBe("3600"); // window starts on the hour
+    const mid = await handleRegister(req("198.51.100.1"), db, new Date("2026-11-21T12:20:00Z"));
+    expect(mid.status).toBe(429);
+    expect(mid.headers.get("retry-after")).toBe("2400");
     expect((await handleRegister(req("198.51.100.2"), db, now)).status).toBe(201);
     const later = new Date("2026-11-21T13:00:01Z");
     expect((await handleRegister(req("198.51.100.1"), db, later)).status).toBe(201);

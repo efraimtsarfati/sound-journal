@@ -28,7 +28,12 @@ function unauthorized(origin: string): Response {
  * POST /api/mcp: stateless streamable HTTP, JSON responses only (no SSE). A bearer access token
  * from lib/core/oauth is required; the server is built per request for the token's user.
  */
-export async function handleMcp(req: Request, db: Db, env: McpEnv): Promise<Response> {
+export async function handleMcp(
+  req: Request,
+  db: Db,
+  env: McpEnv,
+  deps: Parameters<typeof createMcpServer>[2] = {},
+): Promise<Response> {
   const origin = appOrigin(env.APP_ORIGIN);
   if (!origin) {
     return Response.json({ error: "server_error", message: "APP_ORIGIN is not configured." }, { status: 503, headers: NO_STORE });
@@ -45,7 +50,7 @@ export async function handleMcp(req: Request, db: Db, env: McpEnv): Promise<Resp
     });
   }
 
-  const server = createMcpServer(db, who.userId);
+  const server = createMcpServer(db, who.userId, deps, who.clientName);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

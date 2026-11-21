@@ -13,7 +13,7 @@ export const GLOBAL_SLOW_AFTER = 50;
 export const GLOBAL_DELAY_MS = 3000;
 
 export type LoginOptions = {
-  /** Client IP; failures and the lockout are then counted per IP. Without it the shared `login` key is used. */
+  /** Client IP; failures and the lockout are then counted per IP. Without it (tests only; the web routes always pass one, "unknown" when no header) the legacy shared `login` key is used. */
   ip?: string;
   /** Replaces the real delay in tests. */
   sleep?: (ms: number) => Promise<void>;
@@ -50,7 +50,7 @@ export type LoginResult =
  * One transaction with the key row locked, so parallel requests cannot bypass the lockout.
  * Refuses while locked (without comparing or counting), counts failures (the MAX_FAILS-th
  * locks the key for LOCK_SECONDS; an expired lock starts a fresh count) and resets the row (0 fails,
- * no lock) on success. Shared by the login form and the OAuth consent page (same `login` key).
+ * no lock) on success. Shared by the login form and the OAuth consent page (same `login:ip:<ip>` key).
  */
 export async function attemptLogin(
   db: Db,
@@ -59,7 +59,7 @@ export async function attemptLogin(
   now: Date = new Date(),
   opts: LoginOptions = {},
 ): Promise<LoginResult> {
-  // Per client IP when the caller knows it (the web routes always do); the shared `login` key otherwise.
+  // Per client IP when the caller knows it (the web routes always do); the legacy shared `login` key otherwise (no route does this).
   const key = opts.ip === undefined ? LOGIN_KEY : `${LOGIN_KEY}:ip:${ipKeyPart(opts.ip)}`;
   // Global backstop: past GLOBAL_SLOW_AFTER failures this hour every attempt waits first. It never locks.
   if ((await readCounter(db, GLOBAL_KEY, GLOBAL_WINDOW_SEC, now)) >= GLOBAL_SLOW_AFTER) {

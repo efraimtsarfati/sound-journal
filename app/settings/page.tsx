@@ -1,21 +1,22 @@
 import { Nav } from "@/app/_components/nav";
 import { ActionButton } from "@/app/_components/action-button";
-import { OWNER_USER_ID, getConnectorSettings, listConnectedApps } from "@/lib/core";
+import { OWNER_USER_ID, formatInZone, getConnectorSettings, getUserTimeZone, listConnectedApps } from "@/lib/core";
 import { getDb } from "@/lib/db";
 import { ConnectorSwitches } from "./connector-switches";
 
 export const metadata = { title: "Settings · Sound Journal" };
 export const dynamic = "force-dynamic";
 
-function when(d: Date | null): string {
-  return d ? d.toISOString().slice(0, 16).replace("T", " ") + " UTC" : "never";
+function when(d: Date | null, timeZone: string): string {
+  return d ? formatInZone(d, timeZone) : "never";
 }
 
 export default async function SettingsPage() {
   const db = getDb();
-  const [switches, apps] = await Promise.all([
+  const [switches, apps, timeZone] = await Promise.all([
     getConnectorSettings(db, OWNER_USER_ID),
     listConnectedApps(db, OWNER_USER_ID),
+    getUserTimeZone(db, OWNER_USER_ID),
   ]);
   return (
     <main className="mx-auto max-w-xl p-4">
@@ -40,7 +41,7 @@ export default async function SettingsPage() {
                 <div className="min-w-0">
                   <div className="break-words font-medium">{a.name}</div>
                   <div className="text-sm text-neutral-600">
-                    Connected {when(a.connectedAt)} · last used {when(a.lastUsedAt)}
+                    Connected {when(a.connectedAt, timeZone)} · last used {when(a.lastUsedAt, timeZone)}
                   </div>
                 </div>
                 <ActionButton

@@ -1,10 +1,10 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { artists, entries, entryArtists, highlights, type Db, type Entry, type Highlight } from "../db";
 import { fetchOEmbed, parseYouTubeUrl, YOUTUBE_SOURCE_TYPE, youtubeWatchUrl, YouTubeError, deriveTitleArtist } from "../sources/youtube";
 import { addEntry, findDuplicateEntry, lockSource } from "./entries";
 import { CoreError } from "./errors";
 import { addHighlight, initialStatus, loadHighlight, type HighlightInput } from "./highlights";
-import { assertTimes, normalizeNote } from "./text";
+import { assertTimes, normalizeArtistName, normalizeNote } from "./text";
 
 export type AgentEntryInput = {
   url: string;
@@ -24,9 +24,11 @@ export type AgentAddResult = {
   ignored: string[];
 };
 
-const normalizeArtistName = (n: string) => n.trim().replace(/\s+/g, " ").toLowerCase();
-
-/** Reuses a shared artist row with the same normalized name, else creates one (no MBID until M7). */
+/**
+ * Reuses a shared artist row with the same normalized name, else creates one (no MBID until M7).
+ * Only artists without an MBID are matched by name (docs/data-model.md, Deduplication), oldest first
+ * so the choice is the same every time.
+ */
 async function attachArtists(db: Db, entryId: string, names: string[]): Promise<void> {
   const seen = new Set<string>();
   let position = 0;
@@ -35,7 +37,7 @@ async function attachArtists(db: Db, entryId: string, names: string[]): Promise<
     const norm = normalizeArtistName(name);
     if (norm === "" || seen.has(norm)) continue;
     seen.add(norm);
-    const [existing] = await db.select().from(artists).where(eq(artists.nameNormalized, norm)).limit(1);
+    const [existing] = await db.select().from(artists).where(and(eq(artists.nameNormalized, norm), isNull(artists.mbid))).orderBy(asc(artists.createdAt), asc(artists.id)).limit(1);
     const artist =
       existing ?? (await db.insert(artists).values({ name, nameNormalized: norm }).returning())[0];
     await db
@@ -69,6 +71,9 @@ export async function addEntryForAgent(
     throw new CoreError("invalid_input", "original_release_year must be a four-digit year.");
   }
 
+  const hasMeta = Boolean(input.title?.trim() || input.album || input.originalReleaseYear != null || input.artists?.length);
+  const ignoredIfExisting = hasMeta ? ["title, artists, album and year (the entry already exists; they were not changed)"] : [];
+
   // One transaction (holding the source lock) so a failure leaves nothing partial and a retry can't double-save.
   return db.transaction(async (tx): Promise<AgentAddResult> => {
     await lockSource(tx, userId, YOUTUBE_SOURCE_TYPE, parsed.videoId);
@@ -76,28 +81,28 @@ export async function addEntryForAgent(
     if (existing) {
       const added: Highlight[] = [];
       for (const h of hls) added.push(await addHighlight(tx, userId, existing.id, h));
-      const hasMeta = Boolean(input.title?.trim() || input.album || input.originalReleaseYear != null || input.artists?.length);
-      const ignored = hasMeta
-        ? ["title, artists, album and year (the entry already exists; they were not changed)"]
-        : [];
-      return { created: false, entry: existing, highlights: added, ignored };
+      return { created: false, entry: existing, highlights: added, ignored: ignoredIfExisting };
     }
 
+    // Always ask YouTube about a new link: a video that does not exist is refused even when the agent
+    // supplied a title, and the raw title and channel are kept with the source.
     let title = input.title?.trim() ?? "";
     let rawTitle: string | null = null;
     let rawAuthor: string | null = null;
+    try {
+      const o = await fetchOEmbed(parsed.videoId, deps);
+      rawTitle = o.rawTitle;
+      rawAuthor = o.rawChannel || null;
+      if (title === "") title = deriveTitleArtist(o.rawTitle, o.rawChannel ?? "").title.trim();
+    } catch (e) {
+      if (!(e instanceof YouTubeError)) throw e;
+      if (e.code === "not_found") {
+        throw new CoreError("not_found", "YouTube has no video with that link. Check the link; nothing was saved.");
+      }
+      // Private, not embeddable or YouTube unreachable: a title the agent gave is still usable, without raw metadata.
+    }
     if (title === "") {
-      try {
-        const o = await fetchOEmbed(parsed.videoId, deps);
-        rawTitle = o.rawTitle;
-        rawAuthor = o.rawChannel;
-        title = deriveTitleArtist(o.rawTitle, o.rawChannel ?? "").title.trim();
-      } catch (e) {
-        if (!(e instanceof YouTubeError)) throw e;
-      }
-      if (title === "") {
-        throw new CoreError("invalid_input", "Could not read a title from YouTube. Pass the song's clean `title`.");
-      }
+      throw new CoreError("invalid_input", "Could not read a title from YouTube. Pass the song's clean `title`.");
     }
 
     const [first, ...rest] = hls;
@@ -112,7 +117,7 @@ export async function addEntryForAgent(
       // Another saver won the race; add everything to their entry.
       const added: Highlight[] = [];
       for (const h of hls) added.push(await addHighlight(tx, userId, result.duplicate.id, h));
-      return { created: false, entry: result.duplicate, highlights: added, ignored: [] };
+      return { created: false, entry: result.duplicate, highlights: added, ignored: ignoredIfExisting };
     }
     const added: Highlight[] = [result.highlight];
     for (const h of rest) added.push(await addHighlight(tx, userId, result.entry.id, h));

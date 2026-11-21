@@ -10,7 +10,7 @@ import {
   listEntriesForAgent,
   registerClient,
 } from "../core";
-import { entryArtists, entrySources, highlightTags, highlights, settings, type Db } from "../db";
+import { artists, entryArtists, entrySources, highlightTags, highlights, settings, type Db } from "../db";
 import { createTestDb, insertArtist, insertEntry, insertHighlight, insertTag, insertUser } from "../db/test-utils";
 import { handleMcp } from "./mcp";
 
@@ -77,8 +77,19 @@ function rpc(method: string, params: unknown) {
   });
 }
 
+/** Stands in for YouTube's oEmbed: ids starting MISSING are 404, PRIVATE are 401, the rest exist. */
+const fakeFetch = async (input: string) => {
+  const id = /v%3D([^&]+)/.exec(input)?.[1] ?? "";
+  const status = id.startsWith("MISSING") ? 404 : id.startsWith("PRIVATE") ? 401 : 200;
+  return {
+    ok: status === 200,
+    status,
+    json: async () => ({ title: `${id} Raw Title (Official Video)`, author_name: "Raw Channel" }),
+  };
+};
+
 async function call(name: string, args: Record<string, unknown> = {}) {
-  const res = await handleMcp(rpc("tools/call", { name, arguments: args }), db, ENV);
+  const res = await handleMcp(rpc("tools/call", { name, arguments: args }), db, ENV, { fetch: fakeFetch });
   expect(res.status).toBe(200);
   const body = (await res.json()) as {
     result: { content: { text: string }[]; structuredContent?: Record<string, any>; isError?: boolean };
@@ -148,6 +159,53 @@ describe("change tools", () => {
     expect((await call("add_entry", { url: yt("CCCCCCCCCCC"), title: "x", highlights: [{ end_sec: 10 }] })).isError).toBe(true);
     // nothing was saved by the failed calls
     expect((await call("get_entry", { url: yt("CCCCCCCCCCC") })).isError).toBe(true);
+  });
+
+  it("add_entry always asks YouTube: a missing video is refused even with a title, raw metadata is stored", async () => {
+    const gone = await call("add_entry", { url: yt("MISSINGxxx1"), title: "Ghost Song" });
+    expect(gone.isError).toBe(true);
+    expect((await call("get_entry", { url: yt("MISSINGxxx1") })).isError).toBe(true);
+    const ok = await call("add_entry", { url: yt("OEMBEDxxxx1"), title: "Clean Title" });
+    expect(ok.isError).toBeUndefined();
+    const [src] = await db.select().from(entrySources).where(eq(entrySources.externalId, "OEMBEDxxxx1"));
+    expect(src.rawTitle).toBe("OEMBEDxxxx1 Raw Title (Official Video)");
+    expect(src.rawAuthor).toBe("Raw Channel");
+    expect(ok.structuredContent!.entry.title).toBe("Clean Title");
+    // not embeddable: the agent's title is still usable, without raw metadata; with no title it is refused
+    const priv = await call("add_entry", { url: yt("PRIVATExxx1"), title: "Private Song" });
+    expect(priv.isError).toBeUndefined();
+    const [psrc] = await db.select().from(entrySources).where(eq(entrySources.externalId, "PRIVATExxx1"));
+    expect(psrc.rawTitle).toBeNull();
+    expect((await call("add_entry", { url: yt("PRIVATExxx2") })).isError).toBe(true);
+  });
+
+  it("add_entry matches artists by normalized name (accents, punctuation, leading The) and only those without an MBID", async () => {
+    await call("add_entry", { url: yt("ARTISTxxx01"), title: "One", artists: ["The Sigur Rós"] });
+    const r = await call("add_entry", { url: yt("ARTISTxxx02"), title: "Two", artists: ["sigur ros!"] });
+    expect(r.isError).toBeUndefined();
+    const rows = await db.select().from(artists).where(eq(artists.nameNormalized, "sigur ros"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe("The Sigur Rós");
+    // an artist that already has an MBID is not reused by name
+    await db.update(artists).set({ mbid: "11111111-1111-4111-8111-111111111111" }).where(eq(artists.id, rows[0].id));
+    await call("add_entry", { url: yt("ARTISTxxx03"), title: "Three", artists: ["Sigur Ros"] });
+    expect(await db.select().from(artists).where(eq(artists.nameNormalized, "sigur ros"))).toHaveLength(2);
+  });
+
+  it("set_highlight_tags records the connected app's name, and refuses status-like tag names", async () => {
+    const r = await call("add_entry", { url: yt("TAGAGENTxx1"), title: "Tag Me", highlights: [{ note: "warm pad" }] });
+    const id = r.structuredContent!.highlights[0].id as string;
+    const set = await call("set_highlight_tags", { highlight_id: id, tags: [{ name: "warm pad", axis: "sound" }] });
+    expect(set.isError).toBeUndefined();
+    const rows = await db.select().from(highlightTags).where(eq(highlightTags.highlightId, id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].agentName).toBe("Test Agent");
+    for (const name of ["needs_why", "needs why", "needs-tags", "tagged"]) {
+      const bad = await call("set_highlight_tags", { highlight_id: id, tags: [{ name, axis: "sound" }] });
+      expect(bad.isError, name).toBe(true);
+      expect(bad.content[0].text).toContain("not a tag");
+    }
+    expect((await db.select().from(highlightTags).where(eq(highlightTags.highlightId, id)))).toHaveLength(1);
   });
 
   it("add_highlight and update_highlight follow the status rules", async () => {

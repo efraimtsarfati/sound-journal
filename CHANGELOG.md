@@ -16,6 +16,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Connect-an-app errors for an unknown app or a mismatched return address show an error page (no link back, "You can close this tab.") instead of redirecting.
 - Agents are no longer told about `match_entry` (rule 8) until that tool exists.
 
+- `add_entry` always checks the link with YouTube first (a video that does not exist is refused even when a title is given) and keeps YouTube's raw title and channel.
+- Artist names are matched ignoring accents, punctuation and a leading "The", so "Sigur Ros" and "The Sigur Rós" are the same artist.
+- Tags added by a connected app now record that app's name.
+- Tag names such as `needs_why` or `tagged` (workflow statuses) are refused.
+- The Settings page shows times in your time zone, and date filters handle time zones where the clock skips midnight.
+
 ### Fixed
 - Connecting an agent failed with "Cross-origin request": the consent page sent `Referrer-Policy: no-referrer`, so browsers posted the approval form with `Origin: null`. It now uses `same-origin`.
 

@@ -26,10 +26,10 @@ All tools call `lib/core` functions only. Read tools are annotated `readOnlyHint
 
 | Tool | Input | Effect |
 |---|---|---|
-| `add_entry` | `url` (YouTube, **required in v1**); optional clean `title`, `artists`, `album`, `original_release_year`; `highlights: [{start_sec?, end_sec?, note?}]` | Creates the entry and highlights (or adds highlights to the existing entry if the URL is already saved; the other fields are then ignored and the result says so). With no `highlights`, one whole-song `needs_why` highlight is created for a new entry. If `title` is omitted it is read from YouTube's oEmbed, and the call is refused if that gives nothing (a title is never invented). Artists are shared reference rows, reused by normalized name; MusicBrainz IDs come with `match_entry` in M7. Returns IDs and statuses |
+| `add_entry` | `url` (YouTube, **required in v1**); optional clean `title`, `artists`, `album`, `original_release_year`; `highlights: [{start_sec?, end_sec?, note?}]` | Creates the entry and highlights (or adds highlights to the existing entry if the URL is already saved; the other fields are then ignored and the result says so). With no `highlights`, one whole-song `needs_why` highlight is created for a new entry. For a new entry YouTube's oEmbed is always asked: a video that does not exist is refused even when `title` is given, and the raw YouTube title and channel are stored on the source (`raw_title`, `raw_author`). If `title` is omitted it is read from oEmbed, and the call is refused if that gives nothing (a title is never invented); if the video is private or cannot be embedded, a `title` the agent gave is still used (without raw metadata). Artists are shared reference rows, reused by normalized name (lowercase, accents and punctuation stripped, leading "the" removed; only artists without an MBID are matched, oldest first); MusicBrainz IDs come with `match_entry` in M7. Returns IDs and statuses |
 | `add_highlight` | `entry_id`, `start_sec?`, `end_sec?`, `note?` | Adds a highlight |
 | `update_highlight` | `highlight_id`, `note?`, `start_sec?`, `end_sec?` (omitted = unchanged, `null` clears; at least one is required) | Edits; a times-only change keeps the status, otherwise status changes follow the [transition rules](data-model.md#highlight-workflow-highlightsstatus) |
-| `set_highlight_tags` | `highlight_id`, `tags: [{name, axis}]` | Sets the highlight's full tag list **as a diff**: tags already on it are kept with their original `added_at`; new ones are attached with `added_at = now`; missing ones are detached. Unknown names are created as `proposed`; merged names resolve to the surviving tag. Status → `tagged`, or `needs_tags` if the list is empty. Refused if the highlight is `needs_why` |
+| `set_highlight_tags` | `highlight_id`, `tags: [{name, axis}]` | Sets the highlight's full tag list **as a diff**: tags already on it are kept with their original `added_at`; new ones are attached with `added_at = now`; missing ones are detached. Unknown names are created as `proposed` (with `agent_name` set to the connected app's name); merged names resolve to the surviving tag; workflow-status words (`needs_why`, `needs why`, `needs-tags`, `tagged`) are refused as tag names. Status → `tagged`, or `needs_tags` if the list is empty. Refused if the highlight is `needs_why` |
 | `match_entry` (**built in M7**, with the MusicBrainz adapter; not in the server before then) | `entry_id`, `mbid`, `confidence: "high" \| "low"` | Stores the MusicBrainz match; `high` → `matched`, `low` → stays `unmatched` for the user to confirm. Fetches artist genres |
 
 ### Delete (needs `allowChanges` and `allowDeletes`)
@@ -44,7 +44,7 @@ Approving, merging and rejecting tags is done by the user in the web app in v1, 
 
 ## Server instructions (sent to every connected agent)
 
-The server's `instructions` field is the house rules, sent in the `initialize` result (the text lives in `SERVER_INSTRUCTIONS` in `lib/mcp/server.ts` and must match this list). Rule 8 refers to `match_entry`, so it is sent only when that tool is registered (M7); until then the list ends at rule 7 (`serverInstructions()` in `lib/mcp/server.ts`).
+The server's `instructions` field is the house rules, sent in the `initialize` result (the text lives in `BASE_INSTRUCTIONS` and `MATCH_ENTRY_INSTRUCTION` in `lib/mcp/server.ts` and must match this list). Rule 8 refers to `match_entry`, so it is sent only when that tool is registered (M7 onward); until then the list ends at rule 7 (`serverInstructions()` in `lib/mcp/server.ts`).
 
 > You are connected to the user's Sound Journal: a library of moments in music and why they matter to the user.
 > 1. At the start of any Sound Journal task, call `list_inbox` and mention anything waiting.
@@ -54,7 +54,7 @@ The server's `instructions` field is the house rules, sent in the `initialize` r
 > 5. Genres are not tags. Don't tag artist genres.
 > 6. Never invent tracks, links or timestamps. Before saving or suggesting a track, confirm it exists (find its YouTube or Spotify link). If you can't, say so.
 > 7. When saving from a description ("around where the guitars come in"), give your best timestamp and tell the user it's approximate so they can adjust it in the app.
-> 8. Match entries to MusicBrainz only when confident; otherwise use `confidence: "low"` and let the user confirm.
+> 8. *(M7 onward)* Match entries to MusicBrainz only when confident; otherwise use `confidence: "low"` and let the user confirm.
 
 ## The inbox flow
 

@@ -110,6 +110,8 @@ export function createMcpServer(
   db: Db,
   userId: string,
   deps: NonNullable<Parameters<typeof fetchOEmbed>[1]> = {},
+  /** The connected app's registered name; recorded as `agent_name` on tags it attaches. */
+  clientName: string | null = null,
 ): McpServer {
   const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version }, { instructions: serverInstructions({ matchEntry: REGISTERS_MATCH_ENTRY }) });
 
@@ -197,8 +199,8 @@ export function createMcpServer(
         axis: z.string().optional().describe("Only highlights with a tag on this axis"),
         artist: z.string().optional().describe("Exact artist name, case-insensitive"),
         status: z.enum(["needs_why", "needs_tags", "tagged"]).optional(),
-        from: dateInput.optional().describe("Captured on or after (ISO date)"),
-        to: dateInput.optional().describe("Captured before this date (ISO date, exclusive)"),
+        from: dateInput.optional().describe("Captured on or after this calendar date (YYYY-MM-DD, read in the user's time zone)"),
+        to: dateInput.optional().describe("Captured before this calendar date (YYYY-MM-DD, read in the user's time zone; exclusive)"),
         limit: z.number().int().min(1).max(100).optional().describe("Default 20"),
       },
       annotations: readOnly,
@@ -358,7 +360,7 @@ export function createMcpServer(
     },
     ({ highlight_id, tags }) =>
       guarded("changes", async () => {
-        const r = await setHighlightTags(db, userId, highlight_id, tags);
+        const r = await setHighlightTags(db, userId, highlight_id, tags, { agentName: clientName });
         const text = [
           `Highlight ${r.highlight.id} is now ${r.highlight.status}.`,
           r.added.length ? `Added: ${r.added.map((t) => t.name).join(", ")}.` : "",

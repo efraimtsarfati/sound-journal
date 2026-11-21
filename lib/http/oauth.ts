@@ -36,11 +36,12 @@ function oauthError(status: number, error: string, description?: string): Respon
 /** POST /api/oauth/register (RFC 7591), public clients only. */
 export async function handleRegister(request: Request, db: Db, now: Date = new Date()): Promise<Response> {
   // 10 registrations per client IP per hour, on top of the client cap. Counted before reading the body.
-  if (!(await allowRegistration(db, clientIp(request), now))) {
+  const check = await allowRegistration(db, clientIp(request), now);
+  if (!check.allowed) {
     return withCors(
       Response.json(
         { error: "temporarily_unavailable", error_description: "Too many registrations from this address. Try again later." },
-        { status: 429, headers: { ...NO_STORE, "Retry-After": "3600" } },
+        { status: 429, headers: { ...NO_STORE, "Retry-After": String(check.retryAfterSec) } },
       ),
     );
   }
