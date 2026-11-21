@@ -28,7 +28,7 @@ All tools call `lib/core` functions only. Read tools are annotated `readOnlyHint
 | `add_entry` | `url` (YouTube, **required in v1**); optional clean `title`, `artists`, `album`, `original_release_year`; `highlights: [{start_sec?, end_sec?, note?}]` | Creates the entry and highlights (or adds highlights to the existing entry if the URL is already saved). Returns IDs and statuses |
 | `add_highlight` | `entry_id`, `start_sec?`, `end_sec?`, `note?` | Adds a highlight |
 | `update_highlight` | `highlight_id`, `note?`, `start_sec?`, `end_sec?` | Edits; status changes follow the [transition rules](data-model.md#highlight-workflow-highlightsstatus) |
-| `set_highlight_tags` | `highlight_id`, `tags: [{name, axis}]` | Sets the highlight's full tag list **as a diff**: tags already on it are kept with their original `added_at`; new ones are attached with `added_at = now`; missing ones are detached. Unknown names are created as `proposed`. Status → `tagged`. Refused if the highlight is `needs_why` |
+| `set_highlight_tags` | `highlight_id`, `tags: [{name, axis}]` | Sets the highlight's full tag list **as a diff**: tags already on it are kept with their original `added_at`; new ones are attached with `added_at = now`; missing ones are detached. Unknown names are created as `proposed`; merged names resolve to the surviving tag. Status → `tagged`, or `needs_tags` if the list is empty. Refused if the highlight is `needs_why` |
 | `match_entry` | `entry_id`, `mbid`, `confidence: "high" \| "low"` | Stores the MusicBrainz match; `high` → `matched`, `low` → stays `unmatched` for the user to confirm. Fetches artist genres |
 
 ### Delete (needs `allowDeletes`)

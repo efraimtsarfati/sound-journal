@@ -19,26 +19,33 @@ async function loadTag(db: DbOrTx, userId: string, tagId: string): Promise<Tag> 
 }
 
 /**
- * Attaches tags to a highlight. Refuses any tag owned by a different user than the
- * highlight (the database only enforces this for tags.merged_into).
+ * Attaches tags to a highlight. The highlight's owner is read from the database (the caller's
+ * `userId` is never trusted); every tag must belong to that same user, else `cross_user`.
  * Existing assignments are left untouched, so `added_at` is never reset.
  */
 export async function attachTagsToHighlight(
   db: DbOrTx,
-  highlight: Pick<Highlight, "id" | "userId">,
-  tagsToAttach: Pick<Tag, "id" | "userId">[],
+  highlight: Pick<Highlight, "id">,
+  tagsToAttach: Pick<Tag, "id">[],
   meta: { addedBy?: "agent" | "user"; agentName?: string | null } = {},
 ): Promise<void> {
-  if (tagsToAttach.some((t) => t.userId !== highlight.userId)) {
+  const [owner] = await db.select({ userId: highlights.userId }).from(highlights).where(eq(highlights.id, highlight.id));
+  if (!owner) throw new CoreError("not_found", "Highlight not found.");
+  if (tagsToAttach.length === 0) return;
+  const ids = [...new Set(tagsToAttach.map((t) => t.id))];
+  const owned = await db
+    .select({ id: tags.id })
+    .from(tags)
+    .where(and(inArray(tags.id, ids), eq(tags.userId, owner.userId)));
+  if (owned.length !== ids.length) {
     throw new CoreError("cross_user", "A tag and a highlight must belong to the same user.");
   }
-  if (tagsToAttach.length === 0) return;
   await db
     .insert(highlightTags)
     .values(
-      tagsToAttach.map((t) => ({
+      ids.map((id) => ({
         highlightId: highlight.id,
-        tagId: t.id,
+        tagId: id,
         addedBy: meta.addedBy ?? "agent",
         agentName: meta.agentName ?? null,
       })),
@@ -68,7 +75,13 @@ async function resolveOrCreateTag(
   if (found.state === "rejected") {
     throw new CoreError("tag_rejected", `The tag "${name}" on axis ${input.axis} was rejected; don't propose it again.`);
   }
-  if (found.state === "merged") return { tag: await loadTag(tx, userId, found.mergedInto!), created: false };
+  if (found.state === "merged") {
+    const survivor = await loadTag(tx, userId, found.mergedInto!);
+    if (!USABLE.includes(survivor.state as (typeof USABLE)[number])) {
+      throw new CoreError("tag_rejected", `The tag "${name}" was merged into a tag that is ${survivor.state}; don't propose it again.`);
+    }
+    return { tag: survivor, created: false };
+  }
   return { tag: found, created: false };
 }
 
@@ -276,7 +289,10 @@ export async function mergeTags(db: Db, userId: string, sourceIds: string[], tar
       WHERE tag_id IN (${sourceList})
       GROUP BY highlight_id
       ON CONFLICT (highlight_id, tag_id)
-      DO UPDATE SET added_at = LEAST(highlight_tags.added_at, EXCLUDED.added_at)
+      DO UPDATE SET
+        added_by = CASE WHEN EXCLUDED.added_at < highlight_tags.added_at THEN EXCLUDED.added_by ELSE highlight_tags.added_by END,
+        agent_name = CASE WHEN EXCLUDED.added_at < highlight_tags.added_at THEN EXCLUDED.agent_name ELSE highlight_tags.agent_name END,
+        added_at = LEAST(highlight_tags.added_at, EXCLUDED.added_at)
     `);
     const affected = await carrierIds(tx, uniqueSources);
     await tx.delete(highlightTags).where(inArray(highlightTags.tagId, uniqueSources));

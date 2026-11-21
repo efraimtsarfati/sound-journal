@@ -91,6 +91,12 @@ export async function setHighlightNote(
 export async function softDeleteHighlight(db: Db, userId: string, highlightId: string): Promise<void> {
   await db.transaction(async (tx) => {
     const h = await loadHighlight(tx, userId, highlightId);
+    // Serialize with other deletes on this entry so two can't both see "2 live" and both proceed.
+    await tx
+      .select({ id: entries.id })
+      .from(entries)
+      .where(and(eq(entries.id, h.entryId), eq(entries.userId, userId)))
+      .for("update");
     const [{ n }] = await tx
       .select({ n: count() })
       .from(highlights)

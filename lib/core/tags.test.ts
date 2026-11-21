@@ -147,6 +147,22 @@ describe("setHighlightTags", () => {
     expect(r2.created).toHaveLength(0);
   });
 
+  it("refuses an alias whose surviving tag was later rejected", async () => {
+    const h = await hl();
+    const r = await setHighlightTags(t.db, OWNER_USER_ID, h.id, [
+      { name: "alias gone", axis: "technique" },
+      { name: "survivor gone", axis: "technique" },
+    ]);
+    const [alias, survivor] = r.created;
+    await mergeTags(t.db, OWNER_USER_ID, [alias.id], survivor.id);
+    await rejectTag(t.db, OWNER_USER_ID, survivor.id);
+    const h2 = await hl();
+    await expect(
+      setHighlightTags(t.db, OWNER_USER_ID, h2.id, [{ name: "alias gone", axis: "technique" }]),
+    ).rejects.toMatchObject({ code: "tag_rejected" });
+    expect(await rows(h2.id)).toHaveLength(0);
+  });
+
   it("is scoped to the user: another user can't tag my highlight, and vocabularies are separate", async () => {
     const other = await insertUser(t.db);
     const mine = await hl();
@@ -167,6 +183,15 @@ describe("highlight_tags cross-user check", () => {
     const h = await hl();
     const foreignTag = await insertTag(t.db, { userId: other.id, slug: "foreign", name: "foreign" });
     await expect(attachTagsToHighlight(t.db, h, [foreignTag])).rejects.toMatchObject({ code: "cross_user" });
+    expect(await rows(h.id)).toHaveLength(0);
+  });
+
+  it("attachTagsToHighlight ignores a spoofed userId on the highlight argument", async () => {
+    const other = await insertUser(t.db);
+    const h = await hl();
+    const foreignTag = await insertTag(t.db, { userId: other.id, slug: "spoofed", name: "spoofed" });
+    const spoofed = { id: h.id, userId: other.id };
+    await expect(attachTagsToHighlight(t.db, spoofed, [foreignTag])).rejects.toMatchObject({ code: "cross_user" });
     expect(await rows(h.id)).toHaveLength(0);
   });
 
@@ -309,6 +334,20 @@ describe("tag lifecycle", () => {
     expect([m1.state, m1.mergedInto]).toEqual(["merged", target.id]);
     expect((await loadHighlight(t.db, OWNER_USER_ID, h.id)).searchDirty).toBe(true);
     expect((await loadHighlight(t.db, OWNER_USER_ID, h2.id)).searchDirty).toBe(true);
+  });
+
+  it("merge takes added_by/agent_name from the row with the earliest added_at", async () => {
+    const h = await insertHighlightWithNote();
+    const target = await insertTag(t.db, { slug: "mb-target", name: "mb target", state: "approved" });
+    const src = await insertTag(t.db, { slug: "mb-src", name: "mb src" });
+    await t.db.insert(highlightTags).values([
+      { highlightId: h.id, tagId: src.id, addedAt: new Date("2026-01-01T00:00:00Z"), addedBy: "agent", agentName: "early-agent" },
+      { highlightId: h.id, tagId: target.id, addedAt: new Date("2026-02-01T00:00:00Z"), addedBy: "user", agentName: null },
+    ]);
+    await mergeTags(t.db, OWNER_USER_ID, [src.id], target.id);
+    const [row] = await rows(h.id);
+    expect(row).toMatchObject({ tagId: target.id, addedBy: "agent", agentName: "early-agent" });
+    expect(row.addedAt).toEqual(new Date("2026-01-01T00:00:00Z"));
   });
 
   it("merge re-points earlier merges so chains never form, and enforces rules", async () => {

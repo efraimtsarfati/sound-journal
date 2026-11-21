@@ -119,6 +119,11 @@ export async function addEntry(db: Db, userId: string, input: AddEntryInput): Pr
 export async function softDeleteEntry(db: Db, userId: string, entryId: string): Promise<void> {
   await db.transaction(async (tx) => {
     const now = new Date();
+    await tx
+      .select({ id: entries.id })
+      .from(entries)
+      .where(and(eq(entries.id, entryId), eq(entries.userId, userId)))
+      .for("update");
     const [row] = await tx
       .update(entries)
       .set({ deletedAt: now })
