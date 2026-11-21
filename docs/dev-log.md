@@ -3,6 +3,15 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M5a — OAuth 2.1 server, password consent, daily cleanup cron (PR #14)
+**State:** done, no migration. `lib/auth/` (crypto, cron secret, OAuth metadata), `lib/core/oauth*.ts` and `cleanup.ts`, `lib/http/` handlers (register, token, consent, discovery, cron), routes under `/api/oauth/*`, `/.well-known/*`, `/oauth/authorize` page, `/api/cron/cleanup` + `vercel.json` cron. Consent uses `APP_PASSWORD` through the now-transactional `attemptLogin` (owner-approved change from the PIN draft). The `/api/mcp/` prefix exemption is gone (exact `/api/mcp` only). 69 new tests (261 total); typecheck, lint, test, build pass. No release (M5 not finished).
+**Next:** owner sets `CRON_SECRET` (16+ chars) and `APP_ORIGIN=https://sound-journal.vercel.app` in Vercel before merging; Opus review (`pr-reviewer`) of this PR per the build plan; then M5b (`mcp-tools`, serves exactly `/api/mcp`, 401 with `WWW-Authenticate` resource_metadata, uses `verifyAccessToken`).
+**Gotchas:**
+- Bash heredoc with quotes in a long multi-file command failed again and wrote nothing -> use the Write tool.
+- No `python3` on this machine -> sed/Edit/Write only; a `#` inside a sed replacement breaks `s#..#..#`.
+**Doc drift:** mcp-server (auth line), data-model (auth_attempts key, constraints 6 and 13, purge bullet), architecture (OAuth, cleanup cron, sessions, layout), build-plan (M4c done, M5a status, follow-ups).
+**Follow-ups:** M6b must delete vectors for the highlight ids `purgeDeleted` returns; the consent page and token flow were tested on PGlite and in the build only, not against a real MCP client or the Vercel cron; "connected apps" management UI (`listGrants`/`revokeGrant` exist) is not built, use `/api/connections/*` when it is.
+
 
 ## 2026-11-21 — M4c — Entry list/detail, inbox counts, tag review, restore, export (PR #13)
 **State:** done. `lib/core/browse.ts` (list/get entries, inbox counts, proposed/approved tags, export) and `lib/core/restore.ts` (`restoreEntry`, `moveDeletedHighlightsToLiveEntry`; both take `lockSource` for every source of the entry in a fixed order). Pages `/`, `/entries/[id]`, `/tags`, `/deleted`; routes under `/api/entries`, `/api/highlights`, `/api/tags/[id]`, `/api/export`. 18 new tests (192 total); typecheck, lint, test, build pass. Cuts v0.4.0 (milestone M4).

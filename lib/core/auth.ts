@@ -1,5 +1,5 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { eq } from "drizzle-orm";
+import { safeEqual } from "../auth/crypto";
 import { authAttempts, type Db } from "../db";
 
 export const LOGIN_KEY = "login";
@@ -9,9 +9,7 @@ export const LOCK_SECONDS = 15 * 60;
 /** Constant-time password check (compares SHA-256 digests so lengths never leak). */
 export function passwordMatches(expected: string | undefined, given: string): boolean {
   if (!expected) return false;
-  const a = createHash("sha256").update(expected).digest();
-  const b = createHash("sha256").update(given).digest();
-  return timingSafeEqual(a, b);
+  return safeEqual(expected, given);
 }
 
 /** Seconds left on the lock for `key`, or 0 when it isn't locked. */
@@ -25,35 +23,6 @@ export async function lockRemainingSec(
   return Math.ceil((row.lockedUntil.getTime() - now.getTime()) / 1000);
 }
 
-/**
- * Records a failed attempt; the MAX_FAILS-th failure locks the key for LOCK_SECONDS.
- * An expired lock starts a fresh count.
- */
-export async function recordFailure(
-  db: Db,
-  key: string,
-  now: Date = new Date(),
-): Promise<{ fails: number; lockedUntil: Date | null }> {
-  return db.transaction(async (tx) => {
-    await tx.insert(authAttempts).values({ key }).onConflictDoNothing();
-    const [row] = await tx
-      .select()
-      .from(authAttempts)
-      .where(eq(authAttempts.key, key))
-      .for("update");
-    const expired = !!row.lockedUntil && row.lockedUntil <= now;
-    const fails = (expired ? 0 : row.fails) + 1;
-    const lockedUntil =
-      fails >= MAX_FAILS
-        ? new Date(now.getTime() + LOCK_SECONDS * 1000)
-        : expired
-          ? null
-          : row.lockedUntil;
-    await tx.update(authAttempts).set({ fails, lockedUntil }).where(eq(authAttempts.key, key));
-    return { fails, lockedUntil };
-  });
-}
-
 export async function clearFailures(db: Db, key: string): Promise<void> {
   await db.delete(authAttempts).where(eq(authAttempts.key, key));
 }
@@ -63,26 +32,41 @@ export type LoginResult =
   | { ok: false; reason: "locked"; retryAfterSec: number }
   | { ok: false; reason: "invalid" };
 
-/** Refuses while locked (without checking the password), counts failures, resets on success. */
+/**
+ * One transaction with the key row locked, so parallel requests cannot bypass the lockout.
+ * Refuses while locked (without comparing or counting), counts failures (the MAX_FAILS-th
+ * locks the key for LOCK_SECONDS; an expired lock starts a fresh count) and deletes the row on
+ * success. Shared by the login form and the OAuth consent page (same `login` key).
+ */
 export async function attemptLogin(
   db: Db,
   expectedPassword: string | undefined,
   given: string,
   now: Date = new Date(),
 ): Promise<LoginResult> {
-  const remaining = await lockRemainingSec(db, LOGIN_KEY, now);
-  if (remaining > 0) return { ok: false, reason: "locked", retryAfterSec: remaining };
-  if (passwordMatches(expectedPassword, given)) {
-    await clearFailures(db, LOGIN_KEY);
-    return { ok: true };
-  }
-  const { lockedUntil } = await recordFailure(db, LOGIN_KEY, now);
-  if (lockedUntil) {
-    return {
-      ok: false,
-      reason: "locked",
-      retryAfterSec: Math.ceil((lockedUntil.getTime() - now.getTime()) / 1000),
-    };
-  }
-  return { ok: false, reason: "invalid" };
+  return db.transaction(async (tx): Promise<LoginResult> => {
+    await tx.insert(authAttempts).values({ key: LOGIN_KEY }).onConflictDoNothing();
+    const [row] = await tx
+      .select()
+      .from(authAttempts)
+      .where(eq(authAttempts.key, LOGIN_KEY))
+      .for("update");
+    if (row.lockedUntil && row.lockedUntil > now) {
+      return {
+        ok: false,
+        reason: "locked",
+        retryAfterSec: Math.ceil((row.lockedUntil.getTime() - now.getTime()) / 1000),
+      };
+    }
+    if (passwordMatches(expectedPassword, given)) {
+      await tx.delete(authAttempts).where(eq(authAttempts.key, LOGIN_KEY));
+      return { ok: true };
+    }
+    const expired = !!row.lockedUntil && row.lockedUntil <= now;
+    const fails = (expired ? 0 : row.fails) + 1;
+    const lockedUntil = fails >= MAX_FAILS ? new Date(now.getTime() + LOCK_SECONDS * 1000) : null;
+    await tx.update(authAttempts).set({ fails, lockedUntil }).where(eq(authAttempts.key, LOGIN_KEY));
+    if (lockedUntil) return { ok: false, reason: "locked", retryAfterSec: LOCK_SECONDS };
+    return { ok: false, reason: "invalid" };
+  });
 }

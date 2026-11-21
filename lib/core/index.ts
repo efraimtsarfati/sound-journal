@@ -8,3 +8,6 @@ export { AXIS_IDS, normalizeNote, normalizeTagName } from "./text";
 export * from "./capture";
 export * from "./browse";
 export * from "./restore";
+export * from "./oauth-rules";
+export * from "./oauth";
+export * from "./cleanup";

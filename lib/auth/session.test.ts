@@ -34,12 +34,26 @@ describe("isPublicPath", () => {
       "/api/oauth/token",
       "/api/mcp",
       "/api/cron/cleanup",
+      "/api/oauth/register",
+      "/api/oauth/authorize",
+      "/.well-known/oauth-protected-resource/api/mcp",
     ]) {
       expect(isPublicPath(p)).toBe(true);
     }
   });
   it("protects everything else", () => {
-    for (const p of ["/", "/entries", "/api/entries", "/oauth/other", "/api/mcpx", "/login/x"]) {
+    for (const p of [
+      "/",
+      "/entries",
+      "/api/entries",
+      "/oauth/other",
+      "/api/mcpx",
+      "/login/x",
+      "/api/mcp/x",
+      "/api/mcp/sse",
+      "/oauth/authorize/x",
+      "/.well-known",
+    ]) {
       expect(isPublicPath(p)).toBe(false);
     }
   });
@@ -55,5 +69,7 @@ describe("safeNext", () => {
     expect(safeNext("/\n/evil.com")).toBe("/");
     expect(safeNext("/\r/evil.com")).toBe("/");
     expect(safeNext(null)).toBe("/");
+    expect(safeNext(["/a"])).toBe("/");
+    expect(safeNext(undefined)).toBe("/");
   });
 });

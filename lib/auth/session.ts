@@ -34,7 +34,6 @@ export function isPublicPath(pathname: string): boolean {
     pathname === "/api/health" ||
     pathname === "/oauth/authorize" ||
     pathname === "/api/mcp" ||
-    pathname.startsWith("/api/mcp/") ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/.well-known/") ||
     pathname.startsWith("/api/oauth/") ||
@@ -43,8 +42,8 @@ export function isPublicPath(pathname: string): boolean {
 }
 
 /** Only same-site relative paths; anything else becomes "/". */
-export function safeNext(next: string | null | undefined): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+export function safeNext(next: unknown): string {
+  if (typeof next !== "string" || !next.startsWith("/") || next.startsWith("//")) return "/";
   // Control chars (tab/LF/CR are stripped by the WHATWG URL parser) and backslashes can turn a
   // "local" path into a protocol-relative URL.
   if (/[\x00-\x1f\x7f\\]/.test(next)) return "/";

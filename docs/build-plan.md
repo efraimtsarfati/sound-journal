@@ -115,8 +115,8 @@ Status: ☐ not started · ◐ in progress · ☑ merged. The last slice of each
 | **M3** | Owner login: password, session cookie, lockout (port from macro-log, state in Postgres), middleware exemptions | `sonnet` | medium | — | architecture (Authentication), data-model (Auth tables) | Set `APP_PASSWORD`, `SESSION_SECRET` in Vercel | ☑ #10 |
 | **M4a** | YouTube adapter: URL parsing incl. `t=`, oEmbed, title/artist derivation + tests with recorded responses | `sonnet` | medium | `core-logic` | architecture (Save from the web app) | — | ☑ #11 |
 | **M4b** | Capture screen: player, mark start/end, optional note, duplicate handling, embed fallback | `sonnet` | medium | `ui-builder` | spec-v1 (Capture), architecture | Test on your phone | ☑ #12 |
-| **M4c** | Entry list and detail, inbox counts, tag review list (against test data), soft delete/restore (restore takes the same per-source lock as M2c and refuses when a live entry already has that source — it offers to move the restored highlights onto the live entry instead), JSON export | `sonnet` | medium | `ui-builder` | spec-v1 (Inbox, Browse), data-model (Export) | Test on your phone | ◐ #13 |
-| **M5a** | OAuth 2.1 server: discovery, DCR, PIN consent, tokens (port from macro-log, Postgres tables), daily cleanup cron (expired auth rows **and** the 30-day purge of soft-deleted entries and highlights) | `opusplan` | high | — | architecture (Authentication), data-model (Auth tables), mcp-server (top) | Set `CRON_SECRET` | ☐ |
+| **M4c** | Entry list and detail, inbox counts, tag review list (against test data), soft delete/restore (restore takes the same per-source lock as M2c and refuses when a live entry already has that source — it offers to move the restored highlights onto the live entry instead), JSON export | `sonnet` | medium | `ui-builder` | spec-v1 (Inbox, Browse), data-model (Export) | Test on your phone | ☑ #13 |
+| **M5a** | OAuth 2.1 server: discovery, DCR, password consent, tokens (port from macro-log, Postgres tables), daily cleanup cron (expired auth rows **and** the 30-day purge of soft-deleted entries and highlights) | `opusplan` | high | — | architecture (Authentication), data-model (Auth tables), mcp-server (top) | Set `CRON_SECRET` (16+ random chars) and `APP_ORIGIN` (`https://sound-journal.vercel.app`) in Vercel | ◐ #14 |
 | **M5b** | MCP endpoint, connector switches, read tools | `sonnet` | medium | `mcp-tools` | mcp-server (Tools: Read) | — | ☐ |
 | **M5c** | Change and delete tools, server instructions | `sonnet` | medium | `mcp-tools` | mcp-server (all) | Connect Claude to `/api/mcp`, try voice capture and tagging | ☐ |
 | **M5 review** | Security-focused review of M5 | `haiku` (the reviewer agent runs on Opus) | low | `pr-reviewer` (Opus) | — | Read the review, merge | ☐ |
@@ -135,4 +135,4 @@ Status: ☐ not started · ◐ in progress · ☑ merged. The last slice of each
 
 ### Follow-ups without a slice
 
-- **Purge of soft-deleted rows after 30 days** (entries, highlights): no slice builds it yet. Add it to the cleanup cron in M5a or a later chore.
+- **M3 review follow-ups** (locked, row-locked `attemptLogin`; array `next`/`error` params; non-form login body) were addressed in M5a. The 30-day purge is built (M5a cleanup cron); vector deletion for purged highlights waits for M6b.

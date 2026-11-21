@@ -120,7 +120,7 @@ Rules:
 - **Every live entry has at least one live highlight.** Saving a whole song creates one highlight with `start_sec = null`. Deleting the last highlight of an entry is refused; delete the entry instead.
 - A whole-work highlight (`start_sec = null`) can coexist with timestamped highlights on the same entry.
 - **One live entry per source per user.** The duplicate check and the insert run in one transaction under a per-source advisory lock; restoring a soft-deleted entry takes the same lock and is refused if a live entry already has that source (its highlights can be moved onto the live entry instead).
-- **Purge:** soft-deleted entries and highlights older than 30 days are hard-deleted by the daily cleanup cron (`/api/cron/cleanup`), along with their vectors.
+- **Purge:** soft-deleted entries and highlights older than 30 days are hard-deleted by the daily cleanup cron (`/api/cron/cleanup`); their vectors are deleted by M6b (see constraint 13).
 - `end_sec` requires `start_sec`, and `end_sec > start_sec` (database check constraints).
 
 ### `tags` — the user's vocabulary
@@ -213,7 +213,7 @@ The macro-log pattern stores auth state in Redis with expiry times. Here it live
 | `oauth_codes` | Authorization codes (60-second life) | `code_hash` PK, `client_id`, `user_id`, `code_challenge`, `redirect_uri`, `expires_at` |
 | `oauth_grants` | One per connected app; deleting it revokes all its tokens | `id`, `client_id`, `user_id`, `created_at`, `last_used_at` |
 | `oauth_tokens` | Access (1 hour) and refresh (90 days) tokens, stored only as SHA-256 hashes | `token_hash` PK, `grant_id`, `kind` (`access`/`refresh`), `expires_at`, `used_at` (refresh rotation) |
-| `auth_attempts` | Failed login/PIN attempts for lockout | `key` (e.g. `login`, `pin`), `fails`, `locked_until` |
+| `auth_attempts` | Failed password attempts for lockout | `key` (just `login`: shared by the login form and the OAuth consent page, there is no `pin` key), `fails`, `locked_until` |
 | `settings` | Per-user settings, including connector switches and time zone | `user_id` PK, `mcp_enabled`, `mcp_allow_changes`, `mcp_allow_deletes`, `time_zone` (default `America/Toronto`) |
 
 ## Constraints and defaults (decided in M2a)
@@ -225,14 +225,14 @@ Enumerated text columns are `text` with a named CHECK (`<table>_<what>_check`), 
 3. **`artist_genres` primary key** is `(artist_id, source, genre)`.
 4. **Settings defaults:** `mcp_enabled` true, `mcp_allow_changes` true, `mcp_allow_deletes` false, `time_zone` `America/Toronto`.
 5. **The first migration seeds** the owner's `users` row (`display_name` `Owner`, NOT NULL) and its `settings` row, with `ON CONFLICT DO NOTHING`.
-6. **`auth_attempts` and the OAuth tables hold only the columns documented above.** M3 and M5a extend them by migration.
+6. **`auth_attempts` and the OAuth tables hold only the columns documented above.** M3 and M5a needed no migration; a future change extends them by migration.
 7. **Highlight note/status rule is a CHECK:** `status = 'needs_why'` exactly when `note IS NULL`, and a note is never blank. `lib/core` stores blank notes as NULL.
 8. **`entries.match_status` of `matched` or `confirmed` requires `mbid`** (one-way: an `unmatched` entry may still have an `mbid_candidate`).
 9. **Cross-user integrity:** `highlights (entry_id, user_id)` is a composite FK to `entries (id, user_id)`; `tags.merged_into` is a composite FK to `tags (id, user_id)`. The same check for `highlight_tags` (tag and highlight belong to one user) lives in `lib/core` (`attachTagsToHighlight`, error `cross_user`) and is tested.
 10. **`updated_at`** is maintained by Drizzle's `$onUpdate`, so writes must go through Drizzle.
 11. **Deletes:** purging an entry cascades to its sources, artist links and highlights; highlights cascade to `highlight_tags`; OAuth grants cascade to tokens and clients to codes and grants. Foreign keys to `users`, and from `entry_artists` to `artists`, restrict (no hard user delete in v1).
 12. **Rejected tags keep their rows** (so the agent won't re-propose the slug). The repeat check is per axis: `set_highlight_tags` refuses a rejected `(axis, slug)`; the same slug on another axis is a different tag. Merges are within one axis, and merging re-points earlier merges so `merged_into` never chains. A merged name resolves to the surviving tag (and is refused if the survivor is later rejected). Duplicate checks ignore soft-deleted entries.
-13. **Purge of soft-deleted rows after 30 days** has no slice yet; it is listed as a follow-up in the build plan.
+13. **Purge (M5a, `lib/core/cleanup.ts`):** the daily cron hard-deletes, per user, entries whose `deleted_at` is more than 30 x 24 hours old (strict: exactly 30 days is kept) and highlights likewise, including every highlight of a purged entry. Matching entries are locked `FOR UPDATE` first (ordered by id) and highlights are deleted by that literal id list, never a subquery, so an entry restored at the same moment is not purged by mistake. Tags and artists are shared vocabulary and are never purged. `purgeDeleted` returns the deleted highlight ids; **M6b must wire vector deletion from them**. The same job also deletes expired codes and tokens (a used but unexpired refresh token stays, so replay is detected), grants with no tokens, clients with no grant or code created more than 7 days ago, and finished lockouts in `auth_attempts`.
 
 ## The owner (single-user v1)
 

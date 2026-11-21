@@ -11,9 +11,11 @@ const MESSAGES: Record<string, string> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{ error?: string | string[]; next?: string | string[] }>;
 }) {
-  const { error, next } = await searchParams;
+  const params = await searchParams;
+  const error = typeof params.error === "string" ? params.error : undefined;
+  const next = typeof params.next === "string" ? params.next : undefined;
   return (
     <main className="mx-auto max-w-sm p-6">
       <h1 className="text-2xl font-semibold">Sound Journal</h1>
