@@ -76,14 +76,87 @@ describe("registerClient", () => {
   it("refuses bad URIs even when called directly", async () => {
     await expect(registerClient(db, { name: "x", redirectUris: ["http://evil.test/cb"] })).rejects.toBeInstanceOf(CoreError);
   });
-  it("refuses past the client cap", async () => {
-    const t = await createTestDb();
-    const d = t.db as unknown as Db;
-    await t.db.insert(oauthClients).values(
-      Array.from({ length: MAX_CLIENTS }, (_, i) => ({ id: `c${i}`, name: "n", redirectUris: [REDIRECT] })),
-    );
-    expect(await registerClient(d, { name: "one too many", redirectUris: [REDIRECT] })).toBeNull();
-    await t.close();
+  describe("at the client cap", () => {
+    async function fullRegistry() {
+      const t = await createTestDb();
+      const d = t.db as unknown as Db;
+      const base = new Date("2026-01-01T00:00:00Z").getTime();
+      await t.db.insert(oauthClients).values(
+        Array.from({ length: MAX_CLIENTS }, (_, i) => ({
+          id: `c${i}`,
+          name: "n",
+          redirectUris: [REDIRECT],
+          createdAt: new Date(base + i * 1000),
+        })),
+      );
+      return { t, d };
+    }
+    const reg = { name: "newcomer", redirectUris: [REDIRECT] };
+
+    it("evicts the oldest unused client instead of refusing", async () => {
+      const { t, d } = await fullRegistry();
+      const c = await registerClient(d, reg);
+      expect(c).not.toBeNull();
+      const ids = (await t.db.select().from(oauthClients)).map((r) => r.id);
+      expect(ids).toHaveLength(MAX_CLIENTS);
+      expect(ids).not.toContain("c0");
+      expect(ids).toContain("c1");
+      await t.close();
+    });
+
+    it("skips clients with a grant or a live code, evicting the next oldest", async () => {
+      const { t, d } = await fullRegistry();
+      await t.db.insert(oauthGrants).values({ clientId: "c0", userId: OWNER_USER_ID });
+      const now = new Date("2026-06-01T00:00:00Z");
+      await t.db.insert(oauthCodes).values({
+        codeHash: "h1",
+        clientId: "c1",
+        userId: OWNER_USER_ID,
+        codeChallenge: "x",
+        redirectUri: REDIRECT,
+        expiresAt: new Date(now.getTime() + 30_000),
+      });
+      expect(await registerClient(d, reg, now)).not.toBeNull();
+      const ids = (await t.db.select().from(oauthClients)).map((r) => r.id);
+      expect(ids).toContain("c0");
+      expect(ids).toContain("c1");
+      expect(ids).not.toContain("c2");
+      await t.close();
+    });
+
+    it("an expired code does not protect a client", async () => {
+      const { t, d } = await fullRegistry();
+      const now = new Date("2026-06-01T00:00:00Z");
+      await t.db.insert(oauthCodes).values({
+        codeHash: "h2",
+        clientId: "c0",
+        userId: OWNER_USER_ID,
+        codeChallenge: "x",
+        redirectUri: REDIRECT,
+        expiresAt: new Date(now.getTime() - 1000),
+      });
+      expect(await registerClient(d, reg, now)).not.toBeNull();
+      expect((await t.db.select().from(oauthClients)).map((r) => r.id)).not.toContain("c0");
+      await t.close();
+    });
+
+    it("returns null only when every client has a grant", async () => {
+      const { t, d } = await fullRegistry();
+      await t.db.insert(oauthGrants).values(
+        Array.from({ length: MAX_CLIENTS }, (_, i) => ({ clientId: `c${i}`, userId: OWNER_USER_ID })),
+      );
+      expect(await registerClient(d, reg)).toBeNull();
+      expect(await t.db.select().from(oauthClients)).toHaveLength(MAX_CLIENTS);
+      await t.close();
+    });
+
+    it("concurrent registrations never exceed the cap", async () => {
+      const { t, d } = await fullRegistry();
+      const results = await Promise.all(Array.from({ length: 5 }, () => registerClient(d, reg)));
+      expect(results.every((r) => r !== null)).toBe(true);
+      expect(await t.db.select().from(oauthClients)).toHaveLength(MAX_CLIENTS);
+      await t.close();
+    });
   });
 });
 

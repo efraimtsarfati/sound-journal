@@ -1,4 +1,4 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, notExists, sql } from "drizzle-orm";
 import { pkceS256, randomToken, safeEqual, sha256Hex } from "../auth/crypto";
 import { mcpResource } from "../auth/oauth-metadata";
 import {
@@ -29,21 +29,56 @@ export const LAST_USED_THROTTLE_SEC = 300;
 
 const addSec = (d: Date, sec: number) => new Date(d.getTime() + sec * 1000);
 
-/** Stores a dynamically registered public client. Returns null when the registry is full. */
+/**
+ * Stores a dynamically registered public client. At the cap, evicts the oldest clients that
+ * have no grant and no live code (same transaction, serialized by an advisory lock); returns
+ * null only when every client is in use.
+ */
 export async function registerClient(
   db: Db,
   input: ParsedRegistration,
+  now: Date = new Date(),
 ): Promise<OauthClient | null> {
   if (!input.redirectUris.every(isAllowedRedirectUri)) {
     throw new CoreError("invalid_input", "Redirect URIs must be https or loopback http.");
   }
-  const [{ n }] = await db.select({ n: count() }).from(oauthClients);
-  if (n >= MAX_CLIENTS) return null;
-  const [row] = await db
-    .insert(oauthClients)
-    .values({ id: crypto.randomUUID(), name: input.name, redirectUris: input.redirectUris })
-    .returning();
-  return row;
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('oauth_client_registry'))`);
+    const [{ n }] = await tx.select({ n: count() }).from(oauthClients);
+    if (n >= MAX_CLIENTS) {
+      const needed = n - MAX_CLIENTS + 1;
+      const evictable = await tx
+        .select({ id: oauthClients.id })
+        .from(oauthClients)
+        .where(
+          and(
+            notExists(
+              tx.select({ x: sql`1` }).from(oauthGrants).where(eq(oauthGrants.clientId, oauthClients.id)),
+            ),
+            notExists(
+              tx
+                .select({ x: sql`1` })
+                .from(oauthCodes)
+                .where(and(eq(oauthCodes.clientId, oauthClients.id), gt(oauthCodes.expiresAt, now))),
+            ),
+          ),
+        )
+        .orderBy(asc(oauthClients.createdAt), asc(oauthClients.id))
+        .limit(needed);
+      if (evictable.length < needed) return null;
+      await tx.delete(oauthClients).where(
+        inArray(
+          oauthClients.id,
+          evictable.map((c) => c.id),
+        ),
+      );
+    }
+    const [row] = await tx
+      .insert(oauthClients)
+      .values({ id: crypto.randomUUID(), name: input.name, redirectUris: input.redirectUris })
+      .returning();
+    return row;
+  });
 }
 
 export async function getClient(db: Db, clientId: string): Promise<OauthClient | null> {
