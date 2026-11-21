@@ -3,12 +3,20 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M5c — MCP change and delete tools, server instructions (PR #16)
+**State:** done, no migration. Tools `add_entry`, `add_highlight`, `update_highlight`, `set_highlight_tags`, `restore_deleted` (need `allowChanges`), `delete_highlight`, `delete_entry` (need `allowDeletes`, `confirm: true`); server `instructions` on initialize. Core in `lib/core/agent-write.ts` and `dates.ts`. M5b review fixes: search dates in `settings.time_zone` (real calendar dates only), generic message plus `console.error` for non-CoreError failures, cursor bounded at 1,000,000, cross-user isolation tests for every tool, doc nits. 301 tests; typecheck, lint, test, build pass. Cuts v0.5.0.
+**Next:** owner sets the switches by SQL if needed (docs/mcp-server.md) and connects Claude to `/api/mcp`; tag `v0.5.0` after merge; M5 review (`pr-reviewer`, Opus); the switches still have no web UI (owner decision pending).
+**Gotchas:**
+- Axes in `taxonomy/axes.json` are sound, technique, structure, feeling, lyric, association; test fixtures using other axis names (texture) fail `set_highlight_tags`.
+- Bash heredocs and long node one-liners with quotes failed again -> write scripts with the Write tool, run them from the scratchpad.
+**Doc drift:** mcp-server (switch SQL, tool details, date semantics, match_entry is M7), architecture, spec-v1, roadmap.
+**Follow-ups:** `match_entry` waits for M7 although instruction 8 mentions it; `add_entry` is not one transaction across several highlights (inputs are validated first); not tried against a real MCP client.
+
 ## 2026-11-21 — M5b — MCP endpoint, connector switches, read tools (PR #15)
 **State:** done, no migration. `POST /api/mcp` (`lib/http/mcp.ts`, `lib/mcp/server.ts`, `app/api/mcp/route.ts`): stateless streamable HTTP via `@modelcontextprotocol/sdk` 1.32, JSON responses, GET/DELETE 405, 401 + `WWW-Authenticate` resource_metadata, `verifyAccessToken`. Read tools: `list_inbox`, `get_taxonomy`, `search_highlights`, `get_entry`, `list_entries` (core in `lib/core/agent-read.ts`); each checks the enabled switch. Also fixed the M5a review items: `attemptLogin` resets the row on success and re-creates a vanished row; `registerClient` evicts the oldest unused clients at the cap. 23 new tests (284 total); typecheck, lint, test, build pass. No release (M5 not finished).
 **Next:** M5c (`mcp-tools`): change and delete tools plus the server instructions (copy docs/mcp-server.md exactly); then M5 review. The `allowChanges`/`allowDeletes` checks already exist in `guarded()` in `lib/mcp/server.ts`.
 **Gotchas:**
-- Working copy files are CRLF (autocrlf) -> multi-line string-replace scripts in node/sed silently match nothing; use the Edit tool or normalize 
- first.
+- Working copy files are CRLF (autocrlf) -> multi-line string-replace scripts in node/sed silently match nothing; use the Edit tool or normalize first.
 - `mcp-handler` 2.x peers on unreleased SDK 2 packages -> used the SDK 1.x web-standard transport directly.
 **Doc drift:** architecture (MCP dependency, endpoint, client cap), mcp-server (search query interim).
 **Follow-ups:** `search_highlights.query` is a plain text match until M6 adds vector search (no score); not tried against a real MCP client or a deployed preview; the connector switches have no web UI yet (defaults apply: enabled, changes on, deletes off).

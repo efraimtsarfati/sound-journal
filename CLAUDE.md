@@ -43,7 +43,7 @@ Short, durable lessons promoted from `docs/dev-log.md` by the wrap-up skill. Kee
 - Cloud sessions can't use `gh pr create` (GraphQL blocked); open PRs with `gh api repos/{owner}/{repo}/pulls`.
 - Neon branch-per-preview isn't active; previews share the production DB, so previews never migrate (only `VERCEL_ENV=production` runs `drizzle-kit migrate`).
 - The working copy lives outside OneDrive (`C:\Users\efrai\dev\sound-journal`); don't move it into a synced folder.
-- In the Bash tool, large heredocs containing quotes can fail with "unexpected EOF" and write nothing; create files with the Write tool.
+- In the Bash tool, heredocs or long `node -e` strings containing quotes can fail with "unexpected EOF" and write nothing; create files and scripts with the Write tool. Working-copy files are CRLF, so use the Edit tool (or normalize line endings) for multi-line replacements.
 - Working-copy files are CRLF (`core.autocrlf`): scripted multi-line string replaces silently match nothing; use the Edit tool.
 - No Python on this machine: edit files with sed, Edit or Write, not `python3`. A `sed` script that contains `#` inside the replacement text breaks when `#` is the delimiter; use `|` or the Edit tool.
 - Several `lib/http/*` handlers take an injected `db`, so route files stay one-liners and the logic is tested on PGlite; new routes should follow that.

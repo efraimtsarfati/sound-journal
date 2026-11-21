@@ -18,6 +18,7 @@ import {
   type Tag,
 } from "../db";
 import { parseYouTubeUrl, YOUTUBE_SOURCE_TYPE } from "../sources/youtube";
+import { startOfDayInZone } from "./dates";
 import { findDuplicateEntry } from "./entries";
 import { CoreError } from "./errors";
 import { AXIS_IDS } from "./text";
@@ -36,6 +37,8 @@ export type AgentHighlight = Highlight & {
   tags: AgentTag[];
   entry: { id: string; title: string; artists: string[]; url: string | null };
 };
+
+const MAX_OFFSET = 1_000_000;
 
 const clampLimit = (n: number | undefined, def: number, max: number) =>
   Math.min(Math.max(Math.trunc(n ?? def), 1), max);
@@ -127,8 +130,10 @@ export type SearchFilters = {
   axis?: string;
   artist?: string;
   status?: "needs_why" | "needs_tags" | "tagged";
-  from?: Date;
-  to?: Date;
+  /** Captured on or after this calendar day (YYYY-MM-DD, in the user's settings.time_zone). */
+  from?: string;
+  /** Captured before this calendar day (YYYY-MM-DD, in the user's settings.time_zone; exclusive). */
+  to?: string;
   limit?: number;
 };
 
@@ -137,14 +142,22 @@ export async function searchHighlights(db: DbOrTx, userId: string, f: SearchFilt
   if (f.axis && !AXIS_IDS.includes(f.axis)) {
     throw new CoreError("invalid_input", `Unknown axis "${f.axis}". Expected one of: ${AXIS_IDS.join(", ")}.`);
   }
+  let from: Date | undefined;
+  let to: Date | undefined;
+  if (f.from || f.to) {
+    const [row] = await db.select({ tz: settings.timeZone }).from(settings).where(eq(settings.userId, userId));
+    const tz = row?.tz ?? "America/Toronto";
+    if (f.from) from = startOfDayInZone(f.from, tz, "from");
+    if (f.to) to = startOfDayInZone(f.to, tz, "to");
+  }
   const conds = [
     eq(highlights.userId, userId),
     isNull(highlights.deletedAt),
     isNull(entries.deletedAt),
   ];
   if (f.status) conds.push(eq(highlights.status, f.status));
-  if (f.from) conds.push(gte(highlights.capturedAt, f.from));
-  if (f.to) conds.push(lt(highlights.capturedAt, f.to));
+  if (from) conds.push(gte(highlights.capturedAt, from));
+  if (to) conds.push(lt(highlights.capturedAt, to));
   if (f.query?.trim()) {
     const like = `%${f.query.trim().replace(/[\\%_]/g, "\\$&")}%`;
     conds.push(ilike(highlights.note, like));
@@ -252,7 +265,7 @@ export async function listEntriesForAgent(
   let offset = 0;
   if (opts.cursor !== undefined) {
     offset = Number(opts.cursor);
-    if (!Number.isInteger(offset) || offset < 0) throw new CoreError("invalid_input", "Invalid cursor.");
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > MAX_OFFSET) throw new CoreError("invalid_input", "Invalid cursor.");
   }
   const conds = [eq(entries.userId, userId), isNull(entries.deletedAt)];
   if (opts.artist?.trim()) {

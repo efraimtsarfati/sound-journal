@@ -141,13 +141,20 @@ describe("auth and transport", () => {
     expect(body.result.serverInfo.version).toMatch(/^\d+\.\d+\.\d+/);
   });
 
-  it("lists the five read tools, all read-only", async () => {
+  it("lists the read, change and delete tools; only the read tools are read-only", async () => {
     const res = await handleMcp(rpc("tools/list", {}), db, ENV);
-    const body = (await res.json()) as { result: { tools: { name: string; annotations: { readOnlyHint: boolean } }[] } };
-    expect(body.result.tools.map((x) => x.name).sort()).toEqual(
-      ["get_entry", "get_taxonomy", "list_entries", "list_inbox", "search_highlights"],
+    const body = (await res.json()) as { result: { tools: { name: string; annotations: { readOnlyHint: boolean; destructiveHint: boolean } }[] } };
+    const names = body.result.tools.map((x) => x.name).sort();
+    expect(names).toEqual(
+      [
+        "add_entry", "add_highlight", "delete_entry", "delete_highlight", "get_entry", "get_taxonomy",
+        "list_entries", "list_inbox", "restore_deleted", "search_highlights", "set_highlight_tags", "update_highlight",
+      ],
     );
-    expect(body.result.tools.every((x) => x.annotations.readOnlyHint)).toBe(true);
+    const readOnly = body.result.tools.filter((x) => x.annotations.readOnlyHint).map((x) => x.name).sort();
+    expect(readOnly).toEqual(["get_entry", "get_taxonomy", "list_entries", "list_inbox", "search_highlights"]);
+    const destructive = body.result.tools.filter((x) => x.annotations.destructiveHint).map((x) => x.name).sort();
+    expect(destructive).toEqual(["delete_entry", "delete_highlight"]);
   });
 });
 

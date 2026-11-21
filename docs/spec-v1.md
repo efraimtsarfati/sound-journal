@@ -40,7 +40,7 @@ V1 is a personal sound journal for a single owner, usable from phone and laptop,
 
 ### Access
 - Web app: single-owner login (password + signed session cookie), as in macro-log.
-- MCP server: OAuth 2.1 with dynamic client registration and a PIN consent page, as in macro-log. Connector switches: enabled / allow changes / allow deletes.
+- MCP server: OAuth 2.1 with dynamic client registration and a password consent page, as in macro-log. Connector switches: enabled / allow changes / allow deletes.
 - Works on phone and laptop; installable to the phone home screen (PWA).
 
 ## Out of scope for v1 (planned — see [roadmap](roadmap.md))

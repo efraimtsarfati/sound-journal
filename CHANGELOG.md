@@ -6,12 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-21
+
 ### Added
+- Agent tools to change the journal: `add_entry`, `add_highlight`, `update_highlight`, `set_highlight_tags` (new tags start as proposals for you to review) and `restore_deleted`, plus `delete_highlight` and `delete_entry` (soft deletes, restorable for 30 days). Changes need "Allow changes" and deletes need "Allow deletes"; there is no settings page for them yet, so docs/mcp-server.md shows the one SQL line to flip a switch.
+- Connected agents now receive the journal's house rules (check the inbox first, reuse tags, never tag a highlight without a note, never invent tracks) when they connect.
 - Connect an agent: sign-in for MCP clients (OAuth 2.1 with automatic client registration). The consent page asks for your app password and shows where the app will send you back. Access lasts 1 hour and refreshes for up to 90 days; replaying an old refresh token disconnects the app.
 - MCP endpoint at `/api/mcp` for connected agents, with the read tools `list_inbox`, `get_taxonomy`, `search_highlights` (text match on notes until the search index arrives), `get_entry` and `list_entries`. Every tool refuses, naming the switch, when the connector is switched off.
 - Deleted entries and highlights are now permanently removed after 30 days, by a daily cleanup job that also clears expired sign-in data.
 
 ### Changed
+- `search_highlights` reads `from` and `to` as calendar days in your time zone (an evening capture in Toronto counts for that day) and refuses dates that do not exist, like 2026-02-30.
+- Agents that hit an unexpected server problem now get a short "try again" message instead of database text.
 - Wrong-password attempts are counted atomically, so parallel guesses cannot get past the 5-attempt lockout.
 - When 200 apps have registered, a new registration replaces the oldest app that was never connected instead of failing.
 
