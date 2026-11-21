@@ -3,6 +3,12 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — chore — M5 owner decisions (PR #17)
+**State:** done. Owner decisions on the M5 open items turned into slices: **M5d** (consent-error redirects, per-IP lockout with a non-locking global backstop, registration rate limit, deletes require allowChanges, connector-switch settings UI, conditional `match_entry` instruction) and **M5e** (PR #16 review items 3–11). M5 review now runs after both. M6b also replaces the interim substring search (accepted until then) and deletes purged highlights' vectors. Verified in Vercel: `CRON_SECRET` and `APP_ORIGIN` are set.
+**Next:** `/autopilot until M5 review`. Owner: connect Claude to `https://sound-journal.vercel.app/api/mcp`; optional phone test of capture and browse.
+**Gotchas:**
+- Preview deployments fail from M5b on with "Integration provisioning error": Neon branch-per-preview was on and hit the free plan's 10-branch cap. Owner to untick it in Vercel → Storage → Neon and delete old preview branches in Neon. Production is unaffected.
+
 ## 2026-11-21 — M5c — MCP change and delete tools, server instructions (PR #16)
 **State:** done, no migration. Tools `add_entry`, `add_highlight`, `update_highlight`, `set_highlight_tags`, `restore_deleted` (need `allowChanges`), `delete_highlight`, `delete_entry` (need `allowDeletes`, `confirm: true`); server `instructions` on initialize. Core in `lib/core/agent-write.ts` and `dates.ts`. M5b review fixes: search dates in `settings.time_zone` (real calendar dates only), generic message plus `console.error` for non-CoreError failures, cursor bounded at 1,000,000, cross-user isolation tests for every tool, doc nits. 301 tests; typecheck, lint, test, build pass. Cuts v0.5.0.
 **Next:** owner sets the switches by SQL if needed (docs/mcp-server.md) and connects Claude to `/api/mcp`; tag `v0.5.0` after merge; M5 review (`pr-reviewer`, Opus); the switches still have no web UI (owner decision pending).
