@@ -51,6 +51,9 @@ describe("safeNext", () => {
     expect(safeNext("//evil.com")).toBe("/");
     expect(safeNext("https://evil.com")).toBe("/");
     expect(safeNext("/\\evil.com")).toBe("/");
+    expect(safeNext("/\t/evil.com")).toBe("/");
+    expect(safeNext("/\n/evil.com")).toBe("/");
+    expect(safeNext("/\r/evil.com")).toBe("/");
     expect(safeNext(null)).toBe("/");
   });
 });
