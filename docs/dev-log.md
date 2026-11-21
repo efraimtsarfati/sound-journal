@@ -3,6 +3,16 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M5b — MCP endpoint, connector switches, read tools (PR #PRNUM)
+**State:** done, no migration. `POST /api/mcp` (`lib/http/mcp.ts`, `lib/mcp/server.ts`, `app/api/mcp/route.ts`): stateless streamable HTTP via `@modelcontextprotocol/sdk` 1.32, JSON responses, GET/DELETE 405, 401 + `WWW-Authenticate` resource_metadata, `verifyAccessToken`. Read tools: `list_inbox`, `get_taxonomy`, `search_highlights`, `get_entry`, `list_entries` (core in `lib/core/agent-read.ts`); each checks the enabled switch. Also fixed the M5a review items: `attemptLogin` resets the row on success and re-creates a vanished row; `registerClient` evicts the oldest unused clients at the cap. 23 new tests (284 total); typecheck, lint, test, build pass. No release (M5 not finished).
+**Next:** M5c (`mcp-tools`): change and delete tools plus the server instructions (copy docs/mcp-server.md exactly); then M5 review. The `allowChanges`/`allowDeletes` checks already exist in `guarded()` in `lib/mcp/server.ts`.
+**Gotchas:**
+- Working copy files are CRLF (autocrlf) -> multi-line string-replace scripts in node/sed silently match nothing; use the Edit tool or normalize 
+ first.
+- `mcp-handler` 2.x peers on unreleased SDK 2 packages -> used the SDK 1.x web-standard transport directly.
+**Doc drift:** architecture (MCP dependency, endpoint, client cap), mcp-server (search query interim).
+**Follow-ups:** `search_highlights.query` is a plain text match until M6 adds vector search (no score); not tried against a real MCP client or a deployed preview; the connector switches have no web UI yet (defaults apply: enabled, changes on, deletes off).
+
 ## 2026-11-21 — M5a — OAuth 2.1 server, password consent, daily cleanup cron (PR #14)
 **State:** done, no migration. `lib/auth/` (crypto, cron secret, OAuth metadata), `lib/core/oauth*.ts` and `cleanup.ts`, `lib/http/` handlers (register, token, consent, discovery, cron), routes under `/api/oauth/*`, `/.well-known/*`, `/oauth/authorize` page, `/api/cron/cleanup` + `vercel.json` cron. Consent uses `APP_PASSWORD` through the now-transactional `attemptLogin` (owner-approved change from the PIN draft). The `/api/mcp/` prefix exemption is gone (exact `/api/mcp` only). 69 new tests (261 total); typecheck, lint, test, build pass. No release (M5 not finished).
 **Next:** owner sets `CRON_SECRET` (16+ chars) and `APP_ORIGIN=https://sound-journal.vercel.app` in Vercel before merging; Opus review (`pr-reviewer`) of this PR per the build plan; then M5b (`mcp-tools`, serves exactly `/api/mcp`, 401 with `WWW-Authenticate` resource_metadata, uses `verifyAccessToken`).

@@ -17,7 +17,7 @@ All tools call `lib/core` functions only. Read tools are annotated `readOnlyHint
 |---|---|---|
 | `list_inbox` | `limit?` | Highlights in `needs_why` and `needs_tags`, with entry title/artist, timestamps and note |
 | `get_taxonomy` | — | Axes (from `axes.json`) and every approved/proposed tag with axis, state and usage count; rejected slugs |
-| `search_highlights` | `query?` (meaning search), `tags?`, `axis?`, `artist?`, `status?`, `from?`/`to?` (captured date), `limit?` | Matching highlights with entry info, tags and a similarity score when `query` is used |
+| `search_highlights` | `query?` (meaning search; until the search index exists in M6, a case-insensitive text match on the note with no score), `tags?`, `axis?`, `artist?`, `status?`, `from?`/`to?` (captured date), `limit?` | Matching highlights with entry info, tags and a similarity score when `query` is used |
 | `get_entry` | `entry_id` or `url` | The entry, its sources, artists, genres and all highlights |
 | `list_entries` | `limit?`, `cursor?`, `artist?` | Entries, newest first |
 

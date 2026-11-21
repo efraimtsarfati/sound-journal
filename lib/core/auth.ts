@@ -35,8 +35,8 @@ export type LoginResult =
 /**
  * One transaction with the key row locked, so parallel requests cannot bypass the lockout.
  * Refuses while locked (without comparing or counting), counts failures (the MAX_FAILS-th
- * locks the key for LOCK_SECONDS; an expired lock starts a fresh count) and deletes the row on
- * success. Shared by the login form and the OAuth consent page (same `login` key).
+ * locks the key for LOCK_SECONDS; an expired lock starts a fresh count) and resets the row (0 fails,
+ * no lock) on success. Shared by the login form and the OAuth consent page (same `login` key).
  */
 export async function attemptLogin(
   db: Db,
@@ -46,11 +46,14 @@ export async function attemptLogin(
 ): Promise<LoginResult> {
   return db.transaction(async (tx): Promise<LoginResult> => {
     await tx.insert(authAttempts).values({ key: LOGIN_KEY }).onConflictDoNothing();
-    const [row] = await tx
-      .select()
-      .from(authAttempts)
-      .where(eq(authAttempts.key, LOGIN_KEY))
-      .for("update");
+    const lockRow = () =>
+      tx.select().from(authAttempts).where(eq(authAttempts.key, LOGIN_KEY)).for("update");
+    let [row] = await lockRow();
+    if (!row) {
+      // The row vanished between our insert and select (a concurrent clearFailures): put it back.
+      await tx.insert(authAttempts).values({ key: LOGIN_KEY }).onConflictDoNothing();
+      [row] = await lockRow();
+    }
     if (row.lockedUntil && row.lockedUntil > now) {
       return {
         ok: false,
@@ -59,7 +62,10 @@ export async function attemptLogin(
       };
     }
     if (passwordMatches(expectedPassword, given)) {
-      await tx.delete(authAttempts).where(eq(authAttempts.key, LOGIN_KEY));
+      await tx
+        .update(authAttempts)
+        .set({ fails: 0, lockedUntil: null })
+        .where(eq(authAttempts.key, LOGIN_KEY));
       return { ok: true };
     }
     const expired = !!row.lockedUntil && row.lockedUntil <= now;

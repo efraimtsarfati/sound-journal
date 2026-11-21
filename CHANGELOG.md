@@ -8,10 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 - Connect an agent: sign-in for MCP clients (OAuth 2.1 with automatic client registration). The consent page asks for your app password and shows where the app will send you back. Access lasts 1 hour and refreshes for up to 90 days; replaying an old refresh token disconnects the app.
+- MCP endpoint at `/api/mcp` for connected agents, with the read tools `list_inbox`, `get_taxonomy`, `search_highlights` (text match on notes until the search index arrives), `get_entry` and `list_entries`. Every tool refuses, naming the switch, when the connector is switched off.
 - Deleted entries and highlights are now permanently removed after 30 days, by a daily cleanup job that also clears expired sign-in data.
 
 ### Changed
 - Wrong-password attempts are counted atomically, so parallel guesses cannot get past the 5-attempt lockout.
+- When 200 apps have registered, a new registration replaces the oldest app that was never connected instead of failing.
 
 ## [0.4.0] — 2026-11-21
 

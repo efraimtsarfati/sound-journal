@@ -93,3 +93,58 @@ describe("attemptLogin concurrency", () => {
     expect(rows[0].fails).toBe(MAX_FAILS);
   });
 });
+
+describe("attemptLogin row handling", () => {
+  beforeEach(() => clearFailures(db, LOGIN_KEY));
+  const now = new Date("2026-07-01T00:00:00Z");
+
+  it("success keeps the row, with 0 fails and no lock", async () => {
+    await attemptLogin(db, "pw", "bad", now);
+    expect(await attemptLogin(db, "pw", "pw", now)).toEqual({ ok: true });
+    const rows = await db.select().from(authAttempts).where(eq(authAttempts.key, LOGIN_KEY));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].fails).toBe(0);
+    expect(rows[0].lockedUntil).toBeNull();
+  });
+
+  it("concurrent successes and failures never throw", async () => {
+    const results = await Promise.all([
+      ...Array.from({ length: 6 }, () => attemptLogin(db, "pw", "pw", now)),
+      ...Array.from({ length: 6 }, () => attemptLogin(db, "pw", "bad", now)),
+      clearFailures(db, LOGIN_KEY),
+      clearFailures(db, LOGIN_KEY),
+    ]);
+    expect(results.filter((r) => r && "ok" in r)).toHaveLength(12);
+  });
+
+  it("recreates a row that disappears mid-attempt", async () => {
+    // Simulate a concurrent delete between the insert and the locking select.
+    const racing = {
+      ...db,
+      transaction: (fn: Parameters<Db["transaction"]>[0]) =>
+        db.transaction(async (tx) => {
+          const realSelect = tx.select.bind(tx);
+          let first = true;
+          (tx as unknown as { select: unknown }).select = (...a: unknown[]) => {
+            const q = (realSelect as (...x: unknown[]) => { from: (t: unknown) => unknown })(...a);
+            if (!first) return q;
+            first = false;
+            const from = q.from.bind(q);
+            q.from = (t: unknown) => {
+              const w = from(t) as { where: (c: unknown) => unknown };
+              const where = w.where.bind(w);
+              w.where = (c: unknown) => {
+                const r = where(c) as { for: (m: string) => Promise<unknown[]> };
+                r.for = async () => [];
+                return r;
+              };
+              return w;
+            };
+            return q;
+          };
+          return fn(tx);
+        }),
+    } as unknown as Db;
+    expect(await attemptLogin(racing, "pw", "pw", now)).toEqual({ ok: true });
+  });
+});
