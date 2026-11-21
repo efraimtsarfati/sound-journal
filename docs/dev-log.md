@@ -3,6 +3,16 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M5e — M5c review follow-ups and M5d nits (PR #21)
+**State:** done, no migration. Artist names normalized per data-model (accents, punctuation, leading "the"; only MBID-less artists matched, oldest first); OAuth client name recorded as `agent_name` on agent tags; `add_entry` always calls oEmbed for new links (404 refused even with a title, raw title and channel stored; private videos keep an agent title); race path reports `ignored`; `from`/`to` descriptions keep the time-zone wording; `startOfDayInZone` handles midnight skipped or repeated (Santiago, Havana); invalid `settings.time_zone` refused; status-like tag names refused. PR #19 nits: docs fixes, register `Retry-After` = seconds left, `/settings` times in `settings.time_zone`, IPv6 keyed by /64. Item 6 of the list was already fixed in M5d. 333 tests; typecheck, lint, test, build pass. No release (M5 review comes next).
+**Next:** M5 review (`pr-reviewer`, Opus) against M5a-M5e combined.
+**Gotchas:**
+- `handleMcp` now takes optional oEmbed deps; MCP tests need a fake `fetch` or `add_entry` hits YouTube. Test video ids must be 11 characters.
+- `ipKeyPart` must stay idempotent (callers pass an already-keyed IP back through it).
+**Doc drift:** architecture, data-model, taxonomy, mcp-server updated.
+**Follow-ups:** artists stored before this change used lowercase-only normalization, so old rows may not match; the global backstop still does not slow parallel guesses (documented). Not tried in a browser or against a real MCP client.
+
+---
 ## 2026-11-21 — M5d — Security and settings fixes (PR #19)
 **State:** done, no migration. Per-IP login and consent lockout (`login:ip:<ip>`) with a global 50/hour slow-down that never locks; register limited to 10/IP/hour (429); delete tools need `allowChanges` too; consent errors for an untrusted client or URI render an HTML error page with no link ("You can close this tab.", owner decision); `/settings` page with the three connector switches and connected apps with Revoke (`/api/settings/connector`, `/api/connections/[id]`); rule 8 (`match_entry`) is sent only when the tool is registered (`REGISTERS_MATCH_ENTRY` flag in `lib/mcp/server.ts`, flip it in M7). New `lib/core/rate-limit.ts`, `connector.ts`, `lib/http/ip.ts`. 315 tests; typecheck, lint, test, build pass. No release (M5 not finished).
 **Next:** M5e (PR #16 review items), then M5 review.
