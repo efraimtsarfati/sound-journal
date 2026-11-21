@@ -7,8 +7,9 @@ V1 is a personal sound journal for a single owner, usable from phone and laptop,
 ### Capture (web app)
 - **Add an entry from a YouTube link.** The app reads the video ID (and a `t=` start time if the link has one), fetches the title and channel through YouTube's oEmbed endpoint (no API key; works for public and unlisted videos), and shows the video.
 - **Whole song or a highlight.** Save with no timestamp (whole work), or mark a start (and optional end) using the embedded player's current position — "mark it while it plays." Manual mm:ss editing is available but never required. If a video can't be embedded, the app links out to YouTube at the timestamp and times are typed in.
-- **Note is optional at save time.** Saving with no note puts the highlight in `needs_why`.
-- **Multiple highlights per entry.** Add another highlight to an existing entry, each with its own note.
+- **Note is optional at save time.** Saving with no note puts the highlight in `needs_why`. After Save, the app opens the song's page.
+- **Multiple highlights per entry.** Add another highlight from the song's page, each with its own note.
+- **Edit any highlight later.** On the song's page, a highlight's note and times are read-only until you tap **Edit**. Then you can change the note ("why") and the start/end (marked from the player or typed), and Save or Cancel. Adding a note to a `needs_why` highlight, or editing a tagged highlight's note, follows the status rules in [data-model.md](data-model.md#highlight-workflow-highlightsstatus).
 - **Duplicate check.** Pasting a link already in the journal opens the existing entry and offers to add a highlight, instead of creating a second entry.
 
 ### Capture (agent, via MCP)
@@ -28,7 +29,7 @@ V1 is a personal sound journal for a single owner, usable from phone and laptop,
 
 ### Browse and search
 - List of entries (newest first) with their highlights, status badges and tags.
-- Entry detail: player that starts at each highlight's timestamp, notes, tags.
+- Song page (entry detail): one player at the top; each highlight is a card showing its time range, note and tags. Tapping a card's time plays the song from there, and an Edit button opens the card for editing. **Add a clip** opens a new card in edit mode on the same page. Inbox items that need a why open their card already in edit mode.
 - Filter by tag, axis, artist, status.
 - Text search on title, artist, album.
 - **Meaning search**: free-text query matched against highlight notes (plus title, artist, tags) by semantic similarity.
