@@ -21,6 +21,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Tags added by a connected app now record that app's name.
 - Tag names such as `needs_why` or `tagged` (workflow statuses) are refused.
 - The Settings page shows times in your time zone, and date filters handle time zones where the clock skips midnight.
+- `add_entry` now gives YouTube 5 seconds to answer and refuses, with "couldn't verify the video with YouTube, try again later", when YouTube can't be reached or errors; a private video or one with embedding off still accepts a title you give.
+- Using a connect-an-app code a second time now revokes the app it connected (OAuth 2.1).
+- The Settings page actions now reject requests from other sites.
 
 ### Fixed
 - Connecting an agent failed with "Cross-origin request": the consent page sent `Referrer-Policy: no-referrer`, so browsers posted the approval form with `Origin: null`. It now uses `same-origin`.

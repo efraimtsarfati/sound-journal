@@ -6,6 +6,9 @@ import { CoreError } from "./errors";
 import { addHighlight, initialStatus, loadHighlight, type HighlightInput } from "./highlights";
 import { assertTimes, normalizeArtistName, normalizeNote } from "./text";
 
+const OEMBED_TIMEOUT_MS = 5000;
+const UNVERIFIED_MESSAGE = "Couldn't verify the video with YouTube, try again later. Nothing was saved.";
+
 export type AgentEntryInput = {
   url: string;
   title?: string;
@@ -74,6 +77,23 @@ export async function addEntryForAgent(
   const hasMeta = Boolean(input.title?.trim() || input.album || input.originalReleaseYear != null || input.artists?.length);
   const ignoredIfExisting = hasMeta ? ["title, artists, album and year (the entry already exists; they were not changed)"] : [];
 
+  // Ask YouTube BEFORE the transaction: never hold a transaction or the source lock while waiting on
+  // the network. Skipped when the link is already saved (a quick unlocked check; the check is repeated
+  // under the lock below). The outcome is acted on only if the entry turns out to be new.
+  type Verified = { ok: true; rawTitle: string; rawChannel: string } | { ok: false; error: YouTubeError } | null;
+  let verified: Verified = null;
+  if (!(await findDuplicateEntry(db, userId, YOUTUBE_SOURCE_TYPE, parsed.videoId))) {
+    const timeout = AbortSignal.timeout(OEMBED_TIMEOUT_MS);
+    const signal = deps.signal ? AbortSignal.any([deps.signal, timeout]) : timeout;
+    try {
+      const o = await fetchOEmbed(parsed.videoId, { ...deps, signal });
+      verified = { ok: true, rawTitle: o.rawTitle, rawChannel: o.rawChannel };
+    } catch (e) {
+      if (!(e instanceof YouTubeError)) throw e;
+      verified = { ok: false, error: e };
+    }
+  }
+
   // One transaction (holding the source lock) so a failure leaves nothing partial and a retry can't double-save.
   return db.transaction(async (tx): Promise<AgentAddResult> => {
     await lockSource(tx, userId, YOUTUBE_SOURCE_TYPE, parsed.videoId);
@@ -89,18 +109,21 @@ export async function addEntryForAgent(
     let title = input.title?.trim() ?? "";
     let rawTitle: string | null = null;
     let rawAuthor: string | null = null;
-    try {
-      const o = await fetchOEmbed(parsed.videoId, deps);
-      rawTitle = o.rawTitle;
-      rawAuthor = o.rawChannel || null;
-      if (title === "") title = deriveTitleArtist(o.rawTitle, o.rawChannel ?? "").title.trim();
-    } catch (e) {
-      if (!(e instanceof YouTubeError)) throw e;
-      if (e.code === "not_found") {
-        throw new CoreError("not_found", "YouTube has no video with that link. Check the link; nothing was saved.");
-      }
-      // Private, not embeddable or YouTube unreachable: a title the agent gave is still usable, without raw metadata.
+    if (verified === null) {
+      // The link was saved when we looked, then vanished (purged) before the lock: nothing was verified.
+      throw new CoreError("invalid_state", UNVERIFIED_MESSAGE);
     }
+    if (verified.ok) {
+      rawTitle = verified.rawTitle;
+      rawAuthor = verified.rawChannel || null;
+      if (title === "") title = deriveTitleArtist(verified.rawTitle, verified.rawChannel ?? "").title.trim();
+    } else if (verified.error.code === "not_found") {
+      throw new CoreError("not_found", "YouTube has no video with that link. Check the link; nothing was saved.");
+    } else if (verified.error.code !== "not_embeddable") {
+      // Timeout, network error, 5xx or an unreadable answer: the video could not be verified.
+      throw new CoreError("invalid_state", UNVERIFIED_MESSAGE);
+    }
+    // Private or embedding disabled (a definite 401/403): a title the agent gave is still usable, without raw metadata.
     if (title === "") {
       throw new CoreError("invalid_input", "Could not read a title from YouTube. Pass the song's clean `title`.");
     }

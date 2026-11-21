@@ -158,13 +158,31 @@ describe("end to end", () => {
     expect(replay.status).toBe(400);
     expect((await replay.json()).error).toBe("invalid_grant");
 
+    // Replaying the code revoked the grant it produced, so its refresh token is dead too.
+    const revoked = await handleToken(
+      tokenReq({ grant_type: "refresh_token", client_id, refresh_token: tokens.refresh_token }),
+      db,
+    );
+    expect(revoked.status).toBe(400);
+  });
+
+  it("refresh rotates the token when the code was not replayed", async () => {
+    const { client_id } = await register();
+    const verifier = randomToken();
+    const consent = await handleConsent(consentReq(authFields(client_id, pkceS256(verifier))), db, ENV);
+    const code = new URL(consent.headers.get("location")!).searchParams.get("code")!;
+    const tokens = await (
+      await handleToken(
+        tokenReq({ grant_type: "authorization_code", client_id, code, redirect_uri: REDIRECT, code_verifier: verifier }),
+        db,
+      )
+    ).json();
     const refreshed = await handleToken(
       tokenReq({ grant_type: "refresh_token", client_id, refresh_token: tokens.refresh_token }),
       db,
     );
     expect(refreshed.status).toBe(200);
-    const next = await refreshed.json();
-    expect(next.refresh_token).not.toBe(tokens.refresh_token);
+    expect((await refreshed.json()).refresh_token).not.toBe(tokens.refresh_token);
   });
 });
 

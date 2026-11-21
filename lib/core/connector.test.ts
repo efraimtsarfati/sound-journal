@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { oauthClients, oauthGrants, oauthTokens, users, type Db } from "../db";
 import { createTestDb } from "../db/test-utils";
 import { getConnectorSettings } from "./agent-read";
-import { listConnectedApps, revokeConnectedApp, setConnectorSwitches } from "./connector";
+import { assertConnectorAllows, listConnectedApps, revokeConnectedApp, setConnectorSwitches } from "./connector";
 import { CoreError } from "./errors";
 import { OWNER_USER_ID } from "./owner";
 
@@ -47,5 +47,40 @@ describe("connected apps", () => {
     await revokeConnectedApp(db, OWNER_USER_ID, mine.id);
     expect(await listConnectedApps(db, OWNER_USER_ID)).toEqual([]);
     expect(await db.select().from(oauthTokens)).toEqual([]);
+  });
+});
+
+describe("assertConnectorAllows", () => {
+  const need = (n: "read" | "changes" | "deletes") => assertConnectorAllows(db, OWNER_USER_ID, n);
+  const set = (enabled: boolean, allowChanges: boolean, allowDeletes: boolean) =>
+    setConnectorSwitches(db, OWNER_USER_ID, { enabled, allowChanges, allowDeletes });
+
+  it("read needs only Enabled", async () => {
+    await set(true, false, false);
+    await expect(need("read")).resolves.toBeUndefined();
+    await set(false, true, true);
+    await expect(need("read")).rejects.toThrow(/Connector -> Enabled/);
+  });
+  it("changes need Enabled and Allow changes", async () => {
+    await set(true, true, false);
+    await expect(need("changes")).resolves.toBeUndefined();
+    await set(true, false, true);
+    await expect(need("changes")).rejects.toThrow(/Connector -> Allow changes/);
+    await set(false, true, true);
+    await expect(need("changes")).rejects.toThrow(/Connector -> Enabled/);
+  });
+  it("deletes need all three switches and name the missing one", async () => {
+    await set(true, true, true);
+    await expect(need("deletes")).resolves.toBeUndefined();
+    await set(true, true, false);
+    await expect(need("deletes")).rejects.toThrow(/Connector -> Allow deletes/);
+    await set(true, false, true);
+    await expect(need("deletes")).rejects.toThrow(/Connector -> Allow changes/);
+    await set(false, true, true);
+    await expect(need("deletes")).rejects.toBeInstanceOf(CoreError);
+  });
+  it("uses the documented defaults with no settings row", async () => {
+    await expect(assertConnectorAllows(db, "00000000-0000-4000-8000-0000000000ff", "changes")).resolves.toBeUndefined();
+    await expect(assertConnectorAllows(db, "00000000-0000-4000-8000-0000000000ff", "deletes")).rejects.toBeInstanceOf(CoreError);
   });
 });
