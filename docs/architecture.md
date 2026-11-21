@@ -111,7 +111,7 @@ Postgres is the source of truth; the vector index is a derived copy.
 |---|---|---|
 | Vercel Hobby | Non-commercial personal use only; 200 projects | 1 project |
 | Neon Free | 100 projects, 1 GB storage per project, 100 CU-hours/month per project | Text notes; far below 1 GB |
-| Upstash Vector Free | 10K queries + updates per day; max 1536 dimensions. Hosted embedding model: `openai/text-embedding-3-small` (1536 dimensions) — confirm free-plan availability and any embedding cost before M6 | Tens per day |
+| Upstash Vector Free | 10K queries + updates per day; max 1536 dimensions. Hosted embedding model: `openai/text-embedding-3-small` (1536 dimensions), available on the Free plan at no cost (index created 2026-11-21, no card on file); env vars `UPSTASH_VECTOR_REST_URL`, `UPSTASH_VECTOR_REST_TOKEN` | Tens per day |
 | MusicBrainz | Rate-limited (about 1 request/second per client); requires a descriptive User-Agent | Occasional lookups |
 | YouTube oEmbed | No key; public and unlisted videos (not private ones) | One call per new entry |
 
