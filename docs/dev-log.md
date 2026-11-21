@@ -3,6 +3,12 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — fix — Consent page rejected every approval (PR #18)
+**State:** done. Connecting Claude failed with `{"error":"access_denied","error_description":"Cross-origin request."}`. Cause: `next.config.ts` set `Referrer-Policy: no-referrer` on `/oauth/authorize`, so browsers send `Origin: null` on the consent form POST, and `handleConsent`'s same-origin check rejects it. Now `same-origin` (still never leaks the URL cross-site); a config test guards it.
+**Next:** owner retries connecting Claude; then `/autopilot until M5 review`.
+**Gotchas:**
+- `Referrer-Policy: no-referrer` makes browsers send `Origin: null` on form POSTs; never combine it with an Origin check.
+
 ## 2026-11-21 — chore — M5 owner decisions (PR #17)
 **State:** done. Owner decisions on the M5 open items turned into slices: **M5d** (consent-error redirects, per-IP lockout with a non-locking global backstop, registration rate limit, deletes require allowChanges, connector-switch settings UI, conditional `match_entry` instruction) and **M5e** (PR #16 review items 3–11). M5 review now runs after both. M6b also replaces the interim substring search (accepted until then) and deletes purged highlights' vectors. Verified in Vercel: `CRON_SECRET` and `APP_ORIGIN` are set.
 **Next:** `/autopilot until M5 review`. Owner: connect Claude to `https://sound-journal.vercel.app/api/mcp`; optional phone test of capture and browse.
