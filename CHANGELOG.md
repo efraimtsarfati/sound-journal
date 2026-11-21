@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-21
+
+### Added
+- Owner login: password page, signed 30-day session cookie, and a 15-minute lockout after 5 wrong passwords. Every page and API route now requires a session, except sign-in, health, and the paths that authenticate themselves (OAuth, MCP, cron).
+
 ## [0.2.0] — 2026-11-20
 
 ### Added
