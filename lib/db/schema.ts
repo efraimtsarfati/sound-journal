@@ -35,17 +35,17 @@ export const entries = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id),
-    kind: text("kind").notNull().default("song"),
+    kind: text("kind", { enum: ["song", "film", "book", "other"] }).notNull().default("song"),
     title: text("title").notNull(),
     album: text("album"),
     originalReleaseYear: integer("original_release_year"),
     durationSec: integer("duration_sec"),
     mbid: uuid("mbid"),
     mbidCandidate: uuid("mbid_candidate"),
-    matchStatus: text("match_status").notNull().default("unmatched"),
+    matchStatus: text("match_status", { enum: ["unmatched", "matched", "confirmed"] }).notNull().default("unmatched"),
     deletedAt: ts("deleted_at"),
-    origin: text("origin").notNull().default("saved"),
-    visibility: text("visibility").notNull().default("private"),
+    origin: text("origin", { enum: ["saved", "suggested"] }).notNull().default("saved"),
+    visibility: text("visibility", { enum: ["private"] }).notNull().default("private"),
     schemaVersion: integer("schema_version").notNull().default(1),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -81,7 +81,7 @@ export const entrySources = pgTable(
     entryId: uuid("entry_id")
       .notNull()
       .references(() => entries.id, { onDelete: "cascade" }),
-    type: text("type").notNull(),
+    type: text("type", { enum: ["youtube", "spotify", "film", "book", "url"] }).notNull(),
     externalId: text("external_id").notNull(),
     url: text("url").notNull(),
     rawTitle: text("raw_title"),
@@ -123,7 +123,7 @@ export const entryArtists = pgTable(
     artistId: uuid("artist_id")
       .notNull()
       .references(() => artists.id),
-    role: text("role").notNull(),
+    role: text("role", { enum: ["primary", "featured"] }).notNull(),
     position: integer("position").notNull().default(0),
   },
   (t) => [
@@ -160,12 +160,12 @@ export const highlights = pgTable(
     startSec: integer("start_sec"),
     endSec: integer("end_sec"),
     note: text("note"),
-    status: text("status").notNull(),
+    status: text("status", { enum: ["needs_why", "needs_tags", "tagged"] }).notNull(),
     capturedAt: ts("captured_at").notNull().defaultNow(),
     noteUpdatedAt: ts("note_updated_at"),
     searchDirty: boolean("search_dirty").notNull().default(true),
     searchSyncedAt: ts("search_synced_at"),
-    visibility: text("visibility").notNull().default("private"),
+    visibility: text("visibility", { enum: ["private"] }).notNull().default("private"),
     deletedAt: ts("deleted_at"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -217,10 +217,10 @@ export const tags = pgTable(
     axis: text("axis").notNull(),
     name: text("name").notNull(),
     slug: text("slug").notNull(),
-    state: text("state").notNull().default("proposed"),
+    state: text("state", { enum: ["proposed", "approved", "rejected", "merged"] }).notNull().default("proposed"),
     mergedInto: uuid("merged_into"),
     description: text("description"),
-    createdBy: text("created_by").notNull(),
+    createdBy: text("created_by", { enum: ["agent", "user"] }).notNull(),
     createdAt: createdAt(),
     approvedAt: ts("approved_at"),
   },
@@ -250,7 +250,7 @@ export const highlightTags = pgTable(
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
     addedAt: ts("added_at").notNull().defaultNow(),
-    addedBy: text("added_by").notNull().default("agent"),
+    addedBy: text("added_by", { enum: ["agent", "user"] }).notNull().default("agent"),
     agentName: text("agent_name"),
   },
   (t) => [
@@ -310,7 +310,7 @@ export const oauthTokens = pgTable(
     grantId: uuid("grant_id")
       .notNull()
       .references(() => oauthGrants.id, { onDelete: "cascade" }),
-    kind: text("kind").notNull(),
+    kind: text("kind", { enum: ["access", "refresh"] }).notNull(),
     expiresAt: ts("expires_at").notNull(),
     usedAt: ts("used_at"),
   },

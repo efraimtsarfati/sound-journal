@@ -124,7 +124,7 @@ If a limit becomes a problem, the fix is to upgrade that one service; nothing in
 
 Neon branches let each pull request test schema migrations against a copy of the data without touching production.
 
-**Who runs migrations:** the `vercel-build` script runs `drizzle-kit migrate` against that environment's `DATABASE_URL_UNPOOLED` (falling back to `DATABASE_URL`; the runtime uses the pooled `DATABASE_URL`), then `next build`. A failed migration fails the deploy, so production is never left on code that expects a schema it doesn't have. Migrations are therefore written to be safe to run while the previous version is still serving (expand, then contract).
+**Who runs migrations:** only production builds migrate. `vercel-build` (`scripts/vercel-build.mjs`) runs `drizzle-kit migrate` against `DATABASE_URL_UNPOOLED` (falling back to `DATABASE_URL`; the runtime uses the pooled `DATABASE_URL`) only when `VERCEL_ENV` is `production`, then `next build`. Preview and development builds skip migrations and just run `next build`: until Neon branch-per-preview is enabled, previews share the production database, so a preview must never migrate it. A failed production migration fails the deploy, so production is never left on code that expects a schema it doesn't have. Migrations are therefore written to be safe to run while the previous version is still serving (expand, then contract).
 
 ## Versioning
 

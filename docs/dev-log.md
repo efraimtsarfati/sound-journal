@@ -8,6 +8,7 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 **State:** done. 15 tables, `0000_init` + seed, `getDb()`, PGlite harness, 52 tests; typecheck, lint, test, build pass locally. Migration not yet run against a real Neon DB.
 **Next:** owner adds Neon via Vercel Marketplace (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`) and merges PR #6; confirm `drizzle-kit migrate` works in the Vercel build without `ws` (if not, ask before adding `ws`). Then M2b (`sonnet`, `core-logic`).
 **Gotchas:**
+- Neon branch-per-preview isn't active; previews share the production DB, so previews never migrate (`vercel-build` migrates only when `VERCEL_ENV=production`).
 - Plain `ON CONFLICT DO NOTHING` keeps the target's `added_at`, not the earliest → tag merge uses `DO UPDATE SET added_at = LEAST(...)`.
 - `match_status` check also trips when an invalid status has no mbid → enum-check tests must supply an mbid.
 - Composite FKs are MATCH SIMPLE: NULL `merged_into` passes. Intended.

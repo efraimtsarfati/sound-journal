@@ -155,7 +155,7 @@ describe("constraints", () => {
     it("rejects needs_tags and tagged with no note", async () => {
       const e = await insertEntry(db);
       for (const status of ["needs_tags", "tagged"]) {
-        await expectPgError(insertHighlight(db, { entryId: e.id, status, note: null }), {
+        await expectPgError(insertHighlight(db, { entryId: e.id, status: status as never, note: null }), {
           code: PG.check,
           constraint: "highlights_status_note_check",
         });
@@ -174,7 +174,7 @@ describe("constraints", () => {
 
     it("rejects an unknown status", async () => {
       const e = await insertEntry(db);
-      await expectPgError(insertHighlight(db, { entryId: e.id, status: "done" }), {
+      await expectPgError(insertHighlight(db, { entryId: e.id, status: "done" as never }), {
         code: PG.check,
         constraint: "highlights_status_check",
       });
@@ -183,16 +183,16 @@ describe("constraints", () => {
 
   describe("visibility and enums", () => {
     it("rejects non-private visibility on entries and highlights", async () => {
-      await expectPgError(insertEntry(db, { visibility: "public" }), {
+      await expectPgError(insertEntry(db, { visibility: "public" as never }), {
         code: PG.check,
         constraint: "entries_visibility_check",
       });
       const e = await insertEntry(db);
-      await expectPgError(insertHighlight(db, { entryId: e.id, visibility: "public" }), {
+      await expectPgError(insertHighlight(db, { entryId: e.id, visibility: "public" as never }), {
         code: PG.check,
         constraint: "highlights_visibility_check",
       });
-      await expectPgError(insertHighlight(db, { entryId: e.id, visibility: "unlisted" }), {
+      await expectPgError(insertHighlight(db, { entryId: e.id, visibility: "unlisted" as never }), {
         code: PG.check,
         constraint: "highlights_visibility_check",
       });
@@ -201,38 +201,38 @@ describe("constraints", () => {
     it("rejects bad enum values", async () => {
       const e = await insertEntry(db);
       const a = await insertArtist(db);
-      await expectPgError(insertEntry(db, { kind: "podcast" }), {
+      await expectPgError(insertEntry(db, { kind: "podcast" as never }), {
         code: PG.check,
         constraint: "entries_kind_check",
       });
-      await expectPgError(insertEntry(db, { origin: "imported" }), {
+      await expectPgError(insertEntry(db, { origin: "imported" as never }), {
         code: PG.check,
         constraint: "entries_origin_check",
       });
-      await expectPgError(insertEntry(db, { matchStatus: "maybe", mbid: MBID_A }), {
+      await expectPgError(insertEntry(db, { matchStatus: "maybe" as never, mbid: MBID_A }), {
         code: PG.check,
         constraint: "entries_match_status_check",
       });
       await expectPgError(
-        db.insert(entrySources).values({ entryId: e.id, type: "tape", externalId: "x", url: "u" }),
+        db.insert(entrySources).values({ entryId: e.id, type: "tape" as never, externalId: "x", url: "u" }),
         { code: PG.check, constraint: "entry_sources_type_check" },
       );
       await expectPgError(
-        db.insert(entryArtists).values({ entryId: e.id, artistId: a.id, role: "producer" }),
+        db.insert(entryArtists).values({ entryId: e.id, artistId: a.id, role: "producer" as never }),
         { code: PG.check, constraint: "entry_artists_role_check" },
       );
-      await expectPgError(insertTag(db, { slug: "bad-state", state: "pending" }), {
+      await expectPgError(insertTag(db, { slug: "bad-state", state: "pending" as never }), {
         code: PG.check,
         constraint: "tags_state_check",
       });
-      await expectPgError(insertTag(db, { slug: "bad-creator", createdBy: "robot" }), {
+      await expectPgError(insertTag(db, { slug: "bad-creator", createdBy: "robot" as never }), {
         code: PG.check,
         constraint: "tags_created_by_check",
       });
       const h = await insertHighlight(db, { entryId: e.id });
       const tag = await insertTag(db, { slug: "bad-added-by" });
       await expectPgError(
-        db.insert(highlightTags).values({ highlightId: h.id, tagId: tag.id, addedBy: "robot" }),
+        db.insert(highlightTags).values({ highlightId: h.id, tagId: tag.id, addedBy: "robot" as never }),
         { code: PG.check, constraint: "highlight_tags_added_by_check" },
       );
     });
@@ -273,7 +273,7 @@ describe("constraints", () => {
         db.insert(oauthTokens).values({
           tokenHash: "h-kind",
           grantId: g.id,
-          kind: "session",
+          kind: "session" as never,
           expiresAt: new Date(),
         }),
         { code: PG.check, constraint: "oauth_tokens_kind_check" },
@@ -284,7 +284,7 @@ describe("constraints", () => {
   describe("match status", () => {
     it("rejects matched or confirmed without an mbid", async () => {
       for (const matchStatus of ["matched", "confirmed"]) {
-        await expectPgError(insertEntry(db, { matchStatus }), {
+        await expectPgError(insertEntry(db, { matchStatus: matchStatus as never }), {
           code: PG.check,
           constraint: "entries_match_mbid_check",
         });
@@ -327,7 +327,7 @@ describe("constraints", () => {
     it("rejects a duplicate source for the same entry, allows it on another entry", async () => {
       const e1 = await insertEntry(db);
       const e2 = await insertEntry(db);
-      const src = { type: "youtube", externalId: "abc123", url: "https://example.test/watch?v=abc123" };
+      const src = { type: "youtube" as const, externalId: "abc123", url: "https://example.test/watch?v=abc123" };
       await db.insert(entrySources).values({ entryId: e1.id, ...src });
       await expectPgError(db.insert(entrySources).values({ entryId: e1.id, ...src }), {
         code: PG.unique,

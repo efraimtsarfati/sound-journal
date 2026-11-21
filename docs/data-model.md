@@ -142,10 +142,10 @@ Rules:
 | highlight_id | uuid FK | |
 | tag_id | uuid FK | |
 | added_at | timestamptz | **when the tag was attached** (may be days after `captured_at`). Never reset when other tags on the highlight change |
-| added_by | text | `agent` in v1; `user` reserved |
+| added_by | text | `agent` in v1; `user` reserved. Defaults to `agent` (v1 has no manual tag adding), so a later user-add path must set `user` explicitly; drop the default then |
 | agent_name | text null | which client added it (from the OAuth client name) |
 
-Primary key: `(highlight_id, tag_id)`. Merging tags moves assignments with `INSERT … ON CONFLICT (highlight_id, tag_id) DO UPDATE SET added_at = LEAST(highlight_tags.added_at, EXCLUDED.added_at)`, keeping the earliest `added_at` (plain `DO NOTHING` would keep the target row's date, not the earliest).
+Primary key: `(highlight_id, tag_id)`. Merging tags moves assignments with `INSERT … ON CONFLICT (highlight_id, tag_id) DO UPDATE SET added_at = LEAST(highlight_tags.added_at, EXCLUDED.added_at)`, keeping the earliest `added_at` (plain `DO NOTHING` would keep the target row's date, not the earliest). When merging several source tags in one statement, the `SELECT` must aggregate (`SELECT highlight_id, MIN(added_at) … GROUP BY highlight_id`), otherwise two source rows for the same highlight hit the same target key twice and Postgres raises "ON CONFLICT DO UPDATE command cannot affect row a second time".
 
 **Who tags in v1:** the agent assigns tags. The user, in the web app, reviews proposed tags (approve, rename, merge, reject) and can remove a tag from a highlight. Manual tag *adding* by the user is reserved for later.
 

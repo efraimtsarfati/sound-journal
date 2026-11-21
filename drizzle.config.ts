@@ -6,7 +6,7 @@ try {
   // No .env.local (CI, Vercel): variables come from the environment.
 }
 
-const url = process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL;
+const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 
 export default defineConfig({
   dialect: "postgresql",
