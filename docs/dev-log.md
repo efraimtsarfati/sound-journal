@@ -4,6 +4,15 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-21 — M4c — Entry list/detail, inbox counts, tag review, restore, export (PR #13)
+**State:** done. `lib/core/browse.ts` (list/get entries, inbox counts, proposed/approved tags, export) and `lib/core/restore.ts` (`restoreEntry`, `moveDeletedHighlightsToLiveEntry`; both take `lockSource` for every source of the entry in a fixed order). Pages `/`, `/entries/[id]`, `/tags`, `/deleted`; routes under `/api/entries`, `/api/highlights`, `/api/tags/[id]`, `/api/export`. 18 new tests (192 total); typecheck, lint, test, build pass. Cuts v0.4.0 (milestone M4).
+**Next:** owner tests on phone (capture, browse, delete/restore); tag `v0.4.0` after merge; then M5a (Opus planning).
+**Gotchas:**
+- Restore returns only highlights deleted at the same instant as the entry, so highlights deleted on their own earlier stay deleted.
+- Bash heredoc with quotes failed again writing components, so use the Write tool.
+**Doc drift:** none.
+**Follow-ups:** "Add a highlight" links to `/capture?url=...`, which prefills the link but doesn't auto-run the lookup; no browser run was done (no DB or session locally), only build and core tests.
+
 ## 2026-11-21 — M4a — YouTube adapter (PR #11)
 **State:** done. `lib/sources/youtube.ts`: `parseYouTubeUrl` (watch, youtu.be, music/m, embed, shorts, `t=`/`start=`/`#t=`, `1h2m3s` forms), `fetchOEmbed` (injectable fetch; 404 `not_found`, 401/403 `not_embeddable`, else `unavailable`), `deriveTitleArtist`, `youtubeWatchUrl`. 60 new tests (174 total); typecheck, lint, test, build pass. Not wired to anything yet.
 **Next:** M4b (capture screen, `ui-builder`) calls these from a route/core wrapper; owner tests on phone after M4b.

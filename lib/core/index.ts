@@ -6,3 +6,5 @@ export * from "./owner";
 export * from "./tags";
 export { AXIS_IDS, normalizeNote, normalizeTagName } from "./text";
 export * from "./capture";
+export * from "./browse";
+export * from "./restore";
