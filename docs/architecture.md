@@ -35,7 +35,7 @@
 | Styling | Tailwind CSS | Same as macro-log |
 | Hosting | Vercel (Hobby), the same account as macro-log, as a separate project | Free, preview deployment per pull request |
 | Primary database | Neon Postgres (Free), via Vercel Marketplace | Relational model (entries → highlights → tags) fits SQL; Upstash Redis free tier allows only one database and macro-log uses it. See [ADR 0001](decisions/0001-postgres-for-primary-data.md) |
-| Query/migrations | Drizzle ORM + drizzle-kit; `@neondatabase/serverless` driver in deployed code | Typed queries, SQL migrations checked into git |
+| Query/migrations | Drizzle ORM + drizzle-kit; `@neondatabase/serverless` driver (neon-serverless `Pool`, for interactive transactions) in deployed code; Node 24 | Typed queries, SQL migrations checked into git |
 | Test database | PGlite (`@electric-sql/pglite`, Postgres compiled to WebAssembly) | Real Postgres in unit tests and CI with no server and no secrets — works for PRs from forks |
 | Validation | `zod` | Input schemas for API routes and MCP tools |
 | Meaning search | Upstash Vector (Free) with a hosted embedding model, via `@upstash/vector` | Embeds raw text server-side, so no embedding API key. See [ADR 0003](decisions/0003-hosted-embeddings.md) |
@@ -124,7 +124,7 @@ If a limit becomes a problem, the fix is to upgrade that one service; nothing in
 
 Neon branches let each pull request test schema migrations against a copy of the data without touching production.
 
-**Who runs migrations:** the `vercel-build` script runs `drizzle-kit migrate` against that environment's `DATABASE_URL`, then `next build`. A failed migration fails the deploy, so production is never left on code that expects a schema it doesn't have. Migrations are therefore written to be safe to run while the previous version is still serving (expand, then contract).
+**Who runs migrations:** only production builds migrate. `vercel-build` (`scripts/vercel-build.mjs`) runs `drizzle-kit migrate` against `DATABASE_URL_UNPOOLED` (falling back to `DATABASE_URL`; the runtime uses the pooled `DATABASE_URL`) only when `VERCEL_ENV` is `production`, then `next build`. Preview and development builds skip migrations and just run `next build`: until Neon branch-per-preview is enabled, previews share the production database, so a preview must never migrate it. A failed production migration fails the deploy, so production is never left on code that expects a schema it doesn't have. Migrations are therefore written to be safe to run while the previous version is still serving (expand, then contract).
 
 ## Versioning
 

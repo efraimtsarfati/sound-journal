@@ -41,4 +41,5 @@ Read `README.md`, then the doc for the area you're changing. The docs in `docs/`
 ## Gotchas
 Short, durable lessons promoted from `docs/dev-log.md` by the wrap-up skill. Keep under 15 lines.
 - Cloud sessions can't use `gh pr create` (GraphQL blocked); open PRs with `gh api repos/{owner}/{repo}/pulls`.
+- Neon branch-per-preview isn't active; previews share the production DB, so previews never migrate (only `VERCEL_ENV=production` runs `drizzle-kit migrate`).
 - The working copy lives outside OneDrive (`C:\Users\efrai\dev\sound-journal`); don't move it into a synced folder.
