@@ -3,7 +3,7 @@
 Sound Journal exposes a remote MCP server so the owner can connect their own agent. The agent provides everything AI-related — voice capture, tagging, metadata matching, discovery, "how do I play this?" — so the app itself needs no AI API key.
 
 - **Endpoint:** `${APP_ORIGIN}/api/mcp`
-- **Auth:** OAuth 2.1 (discovery at `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource`, dynamic client registration, PIN consent page). Any MCP client that supports remote servers with OAuth can connect.
+- **Auth:** OAuth 2.1 (discovery at `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource`, dynamic client registration, consent page). Any MCP client that supports remote servers with OAuth can connect. Decided in M5a: the consent page asks for the owner's `APP_PASSWORD` (the same check and the same 5-fails/15-minute lockout as the login page, no separate PIN); the authorization code lives 60 seconds, the access token 1 hour, the refresh token 90 days (sliding, rotated on use); PKCE `S256` only; `APP_ORIGIN` must be set or discovery and consent refuse to work.
 - **Server info:** name `sound-journal`, version from `package.json` (so an agent can tell which release it's connected to).
 - **Connector switches** (set in the web app): `enabled`, `allowChanges`, `allowDeletes`. Every tool checks them and returns a refusal naming the switch, never an empty result.
 

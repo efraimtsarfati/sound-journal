@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- Connect an agent: sign-in for MCP clients (OAuth 2.1 with automatic client registration). The consent page asks for your app password and shows where the app will send you back. Access lasts 1 hour and refreshes for up to 90 days; replaying an old refresh token disconnects the app.
+- Deleted entries and highlights are now permanently removed after 30 days, by a daily cleanup job that also clears expired sign-in data.
+
+### Changed
+- Wrong-password attempts are counted atomically, so parallel guesses cannot get past the 5-attempt lockout.
+
 ## [0.4.0] — 2026-11-21
 
 ### Added

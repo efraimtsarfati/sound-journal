@@ -16,7 +16,12 @@ function back(request: Request, error: string, next: string) {
 }
 
 export async function POST(request: Request) {
-  const form = await request.formData();
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return back(request, "invalid", "/");
+  }
   const password = String(form.get("password") ?? "");
   const next = safeNext(String(form.get("next") ?? ""));
   const secret = process.env.SESSION_SECRET;

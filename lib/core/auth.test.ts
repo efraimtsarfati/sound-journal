@@ -1,14 +1,16 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createTestDb } from "../db/test-utils";
 import {
   LOCK_SECONDS,
   LOGIN_KEY,
   MAX_FAILS,
   attemptLogin,
+  clearFailures,
   lockRemainingSec,
   passwordMatches,
 } from "./auth";
-import type { Db } from "../db";
+import { authAttempts, type Db } from "../db";
+import { eq } from "drizzle-orm";
 
 let db: Db;
 let close: () => Promise<void>;
@@ -28,6 +30,8 @@ describe("passwordMatches", () => {
 });
 
 describe("attemptLogin lockout", () => {
+  beforeEach(() => clearFailures(db, LOGIN_KEY));
+
   const t0 = new Date("2026-01-01T00:00:00Z");
 
   it("locks after MAX_FAILS, refuses even the right password, then unlocks", async () => {
@@ -65,5 +69,27 @@ describe("attemptLogin lockout", () => {
   it("fails closed when no password is configured", async () => {
     const now = new Date("2026-04-01T00:00:00Z");
     expect(await attemptLogin(db, undefined, "", now)).toMatchObject({ ok: false });
+  });
+});
+
+describe("attemptLogin concurrency", () => {
+  beforeEach(() => clearFailures(db, LOGIN_KEY));
+  const now = new Date("2026-05-01T00:00:00Z");
+
+  it("parallel wrong passwords cannot get more than MAX_FAILS guesses", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () => attemptLogin(db, "pw", "bad", now)),
+    );
+    expect(results.filter((r) => !r.ok && r.reason === "invalid")).toHaveLength(MAX_FAILS - 1);
+    expect(results.filter((r) => !r.ok && r.reason === "locked")).toHaveLength(8 - (MAX_FAILS - 1));
+    const rows = await db.select().from(authAttempts).where(eq(authAttempts.key, LOGIN_KEY));
+    expect(rows[0].fails).toBe(MAX_FAILS);
+  });
+
+  it("a locked key refuses the correct password without counting", async () => {
+    for (let i = 0; i < MAX_FAILS; i++) await attemptLogin(db, "pw", "bad", now);
+    expect(await attemptLogin(db, "pw", "pw", now)).toMatchObject({ ok: false, reason: "locked" });
+    const rows = await db.select().from(authAttempts).where(eq(authAttempts.key, LOGIN_KEY));
+    expect(rows[0].fails).toBe(MAX_FAILS);
   });
 });
