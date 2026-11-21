@@ -9,11 +9,12 @@ export type TagInput = { name: string; axis: string };
 const USABLE = ["proposed", "approved"] as const;
 
 /** Loads a tag owned by the user, or throws not_found. */
-async function loadTag(db: DbOrTx, userId: string, tagId: string): Promise<Tag> {
-  const [row] = await db
+async function loadTag(db: DbOrTx, userId: string, tagId: string, opts: { lock?: boolean } = {}): Promise<Tag> {
+  const q = db
     .select()
     .from(tags)
     .where(and(eq(tags.id, tagId), eq(tags.userId, userId)));
+  const [row] = await (opts.lock ? q.for("update") : q);
   if (!row) throw new CoreError("not_found", "Tag not found.");
   return row;
 }
@@ -61,22 +62,28 @@ async function resolveOrCreateTag(
 ): Promise<{ tag: Tag; created: boolean }> {
   assertAxis(input.axis);
   const { name, slug } = normalizeTagName(input.name);
-  const [found] = await tx
-    .select()
-    .from(tags)
-    .where(and(eq(tags.userId, userId), eq(tags.axis, input.axis), eq(tags.slug, slug)));
+  const lookup = () =>
+    tx
+      .select()
+      .from(tags)
+      .where(and(eq(tags.userId, userId), eq(tags.axis, input.axis), eq(tags.slug, slug)))
+      .for("update");
+  let [found] = await lookup();
   if (!found) {
     const [created] = await tx
       .insert(tags)
       .values({ userId, axis: input.axis, name, slug, state: "proposed", createdBy: "agent" })
+      .onConflictDoNothing()
       .returning();
-    return { tag: created, created: true };
+    if (created) return { tag: created, created: true };
+    // Another transaction created it between our lookup and insert; take it (and its lock).
+    [found] = await lookup();
   }
   if (found.state === "rejected") {
     throw new CoreError("tag_rejected", `The tag "${name}" on axis ${input.axis} was rejected; don't propose it again.`);
   }
   if (found.state === "merged") {
-    const survivor = await loadTag(tx, userId, found.mergedInto!);
+    const survivor = await loadTag(tx, userId, found.mergedInto!, { lock: true });
     if (!USABLE.includes(survivor.state as (typeof USABLE)[number])) {
       throw new CoreError("tag_rejected", `The tag "${name}" was merged into a tag that is ${survivor.state}; don't propose it again.`);
     }
@@ -119,14 +126,19 @@ export async function setHighlightTags(
   opts: { agentName?: string | null } = {},
 ): Promise<{ highlight: Highlight; added: Tag[]; removedTagIds: string[]; created: Tag[] }> {
   return db.transaction(async (tx) => {
-    const h = await loadHighlight(tx, userId, highlightId);
+    const h = await loadHighlight(tx, userId, highlightId, { lock: true });
     if (h.status === "needs_why") {
       throw new CoreError("needs_why", "This highlight has no note yet. Ask for the why before tagging.");
     }
     const desired = new Map<string, Tag>();
     const created: Tag[] = [];
-    for (const input of inputs) {
-      const { tag, created: isNew } = await resolveOrCreateTag(tx, userId, input);
+    // Resolve in a fixed order so concurrent calls lock tag rows in the same order (no deadlock).
+    const order = inputs
+      .map((input, i) => ({ input, i }))
+      .sort((a, b) => `${a.input.axis}|${a.input.name}`.localeCompare(`${b.input.axis}|${b.input.name}`));
+    const resolved: { tag: Tag; created: boolean }[] = [];
+    for (const { input, i } of order) resolved[i] = await resolveOrCreateTag(tx, userId, input);
+    for (const { tag, created: isNew } of resolved) {
       if (isNew) created.push(tag);
       desired.set(tag.id, tag);
     }
@@ -185,17 +197,19 @@ async function carrierIds(tx: DbOrTx, tagIds: string[]): Promise<string[]> {
 
 /** The user accepts a proposed tag. Approving an approved tag is a no-op. */
 export async function approveTag(db: Db, userId: string, tagId: string): Promise<Tag> {
-  const tag = await loadTag(db, userId, tagId);
-  if (tag.state === "approved") return tag;
-  if (tag.state !== "proposed") {
-    throw new CoreError("invalid_state", `A ${tag.state} tag can't be approved.`);
-  }
-  const [row] = await db
-    .update(tags)
-    .set({ state: "approved", approvedAt: new Date() })
-    .where(and(eq(tags.id, tagId), eq(tags.userId, userId)))
-    .returning();
-  return row;
+  return db.transaction(async (tx) => {
+    const tag = await loadTag(tx, userId, tagId, { lock: true });
+    if (tag.state === "approved") return tag;
+    if (tag.state !== "proposed") {
+      throw new CoreError("invalid_state", `A ${tag.state} tag can't be approved.`);
+    }
+    const [row] = await tx
+      .update(tags)
+      .set({ state: "approved", approvedAt: new Date() })
+      .where(and(eq(tags.id, tagId), eq(tags.userId, userId)))
+      .returning();
+    return row;
+  });
 }
 
 /**
@@ -204,7 +218,7 @@ export async function approveTag(db: Db, userId: string, tagId: string): Promise
  */
 export async function rejectTag(db: Db, userId: string, tagId: string): Promise<Tag> {
   return db.transaction(async (tx) => {
-    const tag = await loadTag(tx, userId, tagId);
+    const tag = await loadTag(tx, userId, tagId, { lock: true });
     if (tag.state === "rejected") return tag;
     if (tag.state === "merged") throw new CoreError("invalid_state", "A merged tag can't be rejected.");
     const affected = await carrierIds(tx, [tagId]);
@@ -223,7 +237,7 @@ export async function rejectTag(db: Db, userId: string, tagId: string): Promise<
 export async function renameTag(db: Db, userId: string, tagId: string, newName: string): Promise<Tag> {
   const { name, slug } = normalizeTagName(newName);
   return db.transaction(async (tx) => {
-    const tag = await loadTag(tx, userId, tagId);
+    const tag = await loadTag(tx, userId, tagId, { lock: true });
     if (!USABLE.includes(tag.state as (typeof USABLE)[number])) {
       throw new CoreError("invalid_state", `A ${tag.state} tag can't be renamed.`);
     }
@@ -263,13 +277,17 @@ export async function mergeTags(db: Db, userId: string, sourceIds: string[], tar
     throw new CoreError("invalid_input", "A tag can't be merged into itself.");
   }
   return db.transaction(async (tx) => {
-    const target = await loadTag(tx, userId, targetId);
+    // Lock every involved tag row in id order so merges and setHighlightTags can't deadlock.
+    const lockIds = [...new Set([...uniqueSources, targetId])].sort();
+    const locked = new Map<string, Tag>();
+    for (const id of lockIds) locked.set(id, await loadTag(tx, userId, id, { lock: true }));
+    const target = locked.get(targetId)!;
     if (!USABLE.includes(target.state as (typeof USABLE)[number])) {
       throw new CoreError("invalid_state", `Can't merge into a ${target.state} tag.`);
     }
     const sources: Tag[] = [];
     for (const id of uniqueSources) {
-      const s = await loadTag(tx, userId, id);
+      const s = locked.get(id)!;
       if (!USABLE.includes(s.state as (typeof USABLE)[number])) {
         throw new CoreError("invalid_state", `A ${s.state} tag can't be merged.`);
       }

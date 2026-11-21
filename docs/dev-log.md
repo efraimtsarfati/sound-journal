@@ -4,6 +4,13 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-21 — M2c — lib/core hardening: advisory lock and row locks (PR #9)
+**State:** done. `addEntry` checks and inserts under a per-source advisory lock (`lockSource`, exported for M4c restore); tag rows are locked `FOR UPDATE` in set/approve/reject/rename/merge (fixed order, `ON CONFLICT DO NOTHING` on tag create); `addHighlight`, `setHighlightNote`, `approveTag` are now transactional. 8 new tests (104 total); typecheck, lint, test, build pass. Not user-visible, no changelog line.
+**Next:** merge PR #9, then M3 (asks for `APP_PASSWORD` and `SESSION_SECRET`).
+**Gotchas:**
+- Sorting inputs to lock tags in a fixed order changed the `created` order → restore input order after resolving.
+- PGlite is one connection, so tests assert the lock exists in `pg_locks` and the sequential outcomes, not true interleaving.
+
 ## 2026-11-20 — chore — Open items after M2 (PR #8)
 **State:** done. Checked production: the M2a deploy's build log shows `drizzle-kit migrate` → "migrations applied successfully", and the M2b deploy is live; the production DB is on the single `0000_init` migration. M2b's deferred review items became slice **M2c** (core hardening). Restore-duplicate rule added to M4c and the data model. The 30-day purge now runs in M5a's daily cleanup cron. Neon branch-per-preview is off by decision (architecture → Environments); turning it on is a roadmap item. M2b and the M2 review row ticked.
 **Next:** `/autopilot until M3` (M2c needs no human steps; M3 will ask for `APP_PASSWORD` and `SESSION_SECRET`).

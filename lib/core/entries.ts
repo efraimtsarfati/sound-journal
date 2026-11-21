@@ -1,9 +1,10 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import {
   entries,
   entrySources,
   highlights,
   type Db,
+  type DbOrTx,
   type Entry,
   type EntrySource,
   type Highlight,
@@ -35,7 +36,7 @@ export type AddEntryResult =
 
 /** Finds a live entry the user already saved from this source, or null. */
 export async function findDuplicateEntry(
-  db: Db,
+  db: DbOrTx,
   userId: string,
   type: EntrySource["type"],
   externalId: string,
@@ -56,6 +57,17 @@ export async function findDuplicateEntry(
 }
 
 /**
+ * Takes a transaction-scoped advisory lock for one (user, source type, external ID), so a
+ * duplicate check and the write that follows can't interleave with another saver or a restore.
+ * Must be called inside a transaction; the lock is released at commit or rollback.
+ */
+export async function lockSource(tx: DbOrTx, userId: string, type: string, externalId: string): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`source:${userId}:${type}:${externalId}`}, 0))`,
+  );
+}
+
+/**
  * Creates an entry with its source and a first highlight (whole work unless times are given).
  * Returns `{ duplicate: entry }` without writing if the source is already saved.
  */
@@ -73,10 +85,10 @@ export async function addEntry(db: Db, userId: string, input: AddEntryInput): Pr
   assertTimes(startSec, endSec);
   const note = normalizeNote(input.highlight?.note);
 
-  const existing = await findDuplicateEntry(db, userId, input.source.type, input.source.externalId);
-  if (existing) return { duplicate: existing };
-
-  return db.transaction(async (tx) => {
+  return db.transaction(async (tx): Promise<AddEntryResult> => {
+    await lockSource(tx, userId, input.source.type, input.source.externalId);
+    const existing = await findDuplicateEntry(tx, userId, input.source.type, input.source.externalId);
+    if (existing) return { duplicate: existing };
     const [entry] = await tx
       .insert(entries)
       .values({
