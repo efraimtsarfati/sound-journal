@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- Capture screen (`/capture`): paste a YouTube link, watch it in the page, mark a start and end while it plays (or type them), add an optional note, and save. A link already in the journal adds a highlight to the existing entry. Videos that can't be embedded show a link to YouTube and typed times.
+
 ## [0.3.0] — 2026-11-21
 
 ### Added
