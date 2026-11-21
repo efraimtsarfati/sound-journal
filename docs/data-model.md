@@ -225,10 +225,10 @@ Enumerated text columns are `text` with a named CHECK (`<table>_<what>_check`), 
 6. **`auth_attempts` and the OAuth tables hold only the columns documented above.** M3 and M5a extend them by migration.
 7. **Highlight note/status rule is a CHECK:** `status = 'needs_why'` exactly when `note IS NULL`, and a note is never blank. `lib/core` stores blank notes as NULL.
 8. **`entries.match_status` of `matched` or `confirmed` requires `mbid`** (one-way: an `unmatched` entry may still have an `mbid_candidate`).
-9. **Cross-user integrity:** `highlights (entry_id, user_id)` is a composite FK to `entries (id, user_id)`; `tags.merged_into` is a composite FK to `tags (id, user_id)`. The same check for `highlight_tags` (tag and highlight belong to one user) lives in `lib/core` and is tested in M2b.
+9. **Cross-user integrity:** `highlights (entry_id, user_id)` is a composite FK to `entries (id, user_id)`; `tags.merged_into` is a composite FK to `tags (id, user_id)`. The same check for `highlight_tags` (tag and highlight belong to one user) lives in `lib/core` (`attachTagsToHighlight`, error `cross_user`) and is tested.
 10. **`updated_at`** is maintained by Drizzle's `$onUpdate`, so writes must go through Drizzle.
 11. **Deletes:** purging an entry cascades to its sources, artist links and highlights; highlights cascade to `highlight_tags`; OAuth grants cascade to tokens and clients to codes and grants. Foreign keys to `users`, and from `entry_artists` to `artists`, restrict (no hard user delete in v1).
-12. **Rejected tags keep their rows** (so the agent won't re-propose the slug). Whether the repeat check is per axis or global is an M2b question.
+12. **Rejected tags keep their rows** (so the agent won't re-propose the slug). The repeat check is per axis: `set_highlight_tags` refuses a rejected `(axis, slug)`; the same slug on another axis is a different tag. Merges are within one axis, and merging re-points earlier merges so `merged_into` never chains. Duplicate checks ignore soft-deleted entries.
 13. **Purge of soft-deleted rows after 30 days** has no slice yet; it is listed as a follow-up in the build plan.
 
 ## The owner (single-user v1)

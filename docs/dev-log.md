@@ -4,6 +4,16 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-20 — M2b — lib/core: entries, highlights, status transitions, tag lifecycle, soft delete (PR #7)
+**State:** done. `lib/core` has `addEntry`, `findDuplicateEntry`, `addHighlight`, `setHighlightNote`, `setHighlightTags`, tag approve/reject/rename/merge/remove, soft delete; 44 new tests (96 total); typecheck, lint, test, build pass. Cuts v0.2.0 (milestone M2).
+**Next:** merge PR #7 after the M2 review (`pr-reviewer`, Opus); tag `v0.2.0`; then M3.
+**Gotchas:**
+- Multi-line heredocs with quotes in the Bash tool failed with "unexpected EOF" and wrote nothing → use the Write tool for files.
+- Tests that share one PGlite DB per file collide on tag slugs (existing tags aren't "created") → use unique tag names per test.
+- The PGlite Drizzle db is assignable to `Db` (M2a follow-up resolved); `tx.execute` used only for the merge insert-select.
+**Doc drift:** data-model constraints 9 and 12 updated (cross-user check, rejected tags per axis, merge rules).
+**Follow-ups:** artist linking is not in M2b (M7); search sync calls (`lib/search`) only set `search_dirty`, nothing upserts yet; vector deletion on soft delete waits for `lib/search`; no restore for soft-deleted entries; 30-day purge still has no slice.
+
 ## 2026-11-20 — M2a — Drizzle schema, init migration with owner seed, PGlite harness (PR #6)
 **State:** done. 15 tables, `0000_init` + seed, `getDb()`, PGlite harness, 52 tests; typecheck, lint, test, build pass locally. Migration not yet run against a real Neon DB.
 **Next:** owner adds Neon via Vercel Marketplace (`DATABASE_URL`, `DATABASE_URL_UNPOOLED`) and merges PR #6; confirm `drizzle-kit migrate` works in the Vercel build without `ws` (if not, ask before adding `ws`). Then M2b (`sonnet`, `core-logic`).
