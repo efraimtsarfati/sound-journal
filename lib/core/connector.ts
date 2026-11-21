@@ -1,5 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { oauthClients, oauthGrants, settings, type DbOrTx } from "../db";
+import { DEFAULT_TIME_ZONE } from "./dates";
 import { CoreError } from "./errors";
 
 export type ConnectorSwitches = { enabled: boolean; allowChanges: boolean; allowDeletes: boolean };
@@ -17,6 +18,12 @@ export async function setConnectorSwitches(
   };
   if (Object.keys(set).length === 0) throw new CoreError("invalid_input", "Give at least one switch to change.");
   await db.insert(settings).values({ userId, ...set }).onConflictDoUpdate({ target: settings.userId, set });
+}
+
+/** The user's `settings.time_zone` (an IANA name); the default when there is no settings row. Not validated here. */
+export async function getUserTimeZone(db: DbOrTx, userId: string): Promise<string> {
+  const [row] = await db.select({ tz: settings.timeZone }).from(settings).where(eq(settings.userId, userId));
+  return row?.tz ?? DEFAULT_TIME_ZONE;
 }
 
 export type ConnectedApp = { grantId: string; name: string; connectedAt: Date; lastUsedAt: Date | null };

@@ -18,6 +18,7 @@ import {
   type Tag,
 } from "../db";
 import { parseYouTubeUrl, YOUTUBE_SOURCE_TYPE } from "../sources/youtube";
+import { getUserTimeZone } from "./connector";
 import { startOfDayInZone } from "./dates";
 import { findDuplicateEntry } from "./entries";
 import { CoreError } from "./errors";
@@ -145,8 +146,7 @@ export async function searchHighlights(db: DbOrTx, userId: string, f: SearchFilt
   let from: Date | undefined;
   let to: Date | undefined;
   if (f.from || f.to) {
-    const [row] = await db.select({ tz: settings.timeZone }).from(settings).where(eq(settings.userId, userId));
-    const tz = row?.tz ?? "America/Toronto";
+    const tz = await getUserTimeZone(db, userId);
     if (f.from) from = startOfDayInZone(f.from, tz, "from");
     if (f.to) to = startOfDayInZone(f.to, tz, "to");
   }
