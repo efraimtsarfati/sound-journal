@@ -13,7 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Wrong-password lockout is now per client IP (5 fails, 15 minutes) for both the login page and the connect-an-app page, with a global slow-down (never a lockout) after 50 wrong passwords in an hour.
 - App registration is limited to 10 per IP per hour.
 - Deleting through the connector now also needs "Allow changes".
-- Connect-an-app errors for an unknown app or a mismatched return address show an error page instead of redirecting.
+- Connect-an-app errors for an unknown app or a mismatched return address show an error page (no link back, "You can close this tab.") instead of redirecting.
 - Agents are no longer told about `match_entry` (rule 8) until that tool exists.
 
 ### Fixed

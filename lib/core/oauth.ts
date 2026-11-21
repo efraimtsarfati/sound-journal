@@ -95,8 +95,6 @@ export type AuthorizeCheck =
       redirect: false;
       error: "invalid_client" | "invalid_redirect_uri";
       description: string;
-      /** For a known client with a wrong redirect URI: its first registered URI, a safe "Return to app" target. */
-      returnUri?: string;
     }
   /** Safe to send the error back to the (validated) redirect URI. */
   | {
@@ -124,7 +122,6 @@ export async function checkAuthorizeRequest(
       redirect: false,
       error: "invalid_redirect_uri",
       description: "The redirect URI does not match this client's registration.",
-      returnUri: client.redirectUris[0],
     };
   }
   const fail = (

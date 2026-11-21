@@ -227,7 +227,7 @@ describe("consent", () => {
     expect(loc.searchParams.get("iss")).toBe(ORIGIN);
   });
 
-  it("an untrusted client or redirect gets an HTML error page; only a known client gets a Return to app link", async () => {
+  it("an untrusted client or redirect gets an HTML error page with no link and no redirect", async () => {
     const { client_id } = await register();
     const challenge = pkceS256(randomToken());
     const mismatch = await handleConsent(
@@ -237,11 +237,15 @@ describe("consent", () => {
     );
     expect(mismatch.headers.get("content-type")).toContain("text/html");
     const html = await mismatch.text();
-    expect(html).toContain("Return to app (agent.example.test)");
-    expect(html).toContain(`href="${REDIRECT}"`);
+    expect(mismatch.status).toBe(400);
+    expect(mismatch.headers.get("location")).toBeNull();
+    expect(html).toContain("You can close this tab.");
+    expect(html).not.toContain("<a ");
     expect(html).not.toContain("evil.example.test");
     const unknown = await handleConsent(consentReq(authFields("nope", challenge)), db, ENV);
-    expect(await unknown.text()).not.toContain("Return to app");
+    const unknownHtml = await unknown.text();
+    expect(unknownHtml).toContain("You can close this tab.");
+    expect(unknownHtml).not.toContain("<a ");
   });
 
   it("counts wrong passwords per client IP: another IP is not locked", async () => {

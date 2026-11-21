@@ -141,27 +141,9 @@ function escapeHtml(v: string): string {
   return v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-/** Host of a URL, or null when it does not parse. */
-export function hostOf(uri: string | undefined): string | null {
-  if (!uri) return null;
-  try {
-    return new URL(uri).host;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * The consent error page for a request whose client or redirect URI is not trusted. It never redirects.
- * A "Return to app" link appears only for a known client and points at that client's own registered URI.
- */
+/** The consent error page for a request whose client or redirect URI is not trusted. It never redirects and has no link. */
 function untrustedPage(check: Extract<AuthorizeCheck, { redirect: false }>): Response {
-  const host = hostOf(check.returnUri);
-  const link =
-    check.returnUri && host
-      ? `<p><a href="${escapeHtml(check.returnUri)}" style="display:inline-block;min-height:44px;line-height:44px">Return to app (${escapeHtml(host)})</a></p>`
-      : "";
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cannot connect · Sound Journal</title></head><body style="font-family:system-ui,sans-serif;max-width:24rem;margin:1.5rem auto;padding:0 1rem"><h1>Cannot connect</h1><p>This connection request is not valid (${escapeHtml(check.error)}). Nothing was sent to the app.</p>${link}</body></html>`;
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cannot connect · Sound Journal</title></head><body style="font-family:system-ui,sans-serif;max-width:24rem;margin:1.5rem auto;padding:0 1rem"><h1>Cannot connect</h1><p>This connection request is not valid (${escapeHtml(check.error)}). Nothing was sent to the app. You can close this tab.</p></body></html>`;
   return new Response(html, {
     status: 400,
     headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "frame-ancestors 'none'", ...NO_STORE },
