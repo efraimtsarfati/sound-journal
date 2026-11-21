@@ -4,6 +4,13 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-21 — M4a — YouTube adapter (PR #11)
+**State:** done. `lib/sources/youtube.ts`: `parseYouTubeUrl` (watch, youtu.be, music/m, embed, shorts, `t=`/`start=`/`#t=`, `1h2m3s` forms), `fetchOEmbed` (injectable fetch; 404 `not_found`, 401/403 `not_embeddable`, else `unavailable`), `deriveTitleArtist`, `youtubeWatchUrl`. 60 new tests (174 total); typecheck, lint, test, build pass. Not wired to anything yet.
+**Next:** M4b (capture screen, `ui-builder`) calls these from a route/core wrapper; owner tests on phone after M4b.
+**Gotchas:**
+- A recorded real oEmbed response ("(Official Video) (4K Remaster)") exposed a noise pattern the hand-written cases missed -> added `4k`/`hd` before "remaster".
+- Only "<Artist> - Topic" channels are used as the artist; any other channel name is left out rather than guessed.
+
 ## 2026-11-21 — M3 — Owner login (PR #10)
 **State:** done. `proxy.ts` gates everything except the documented exemptions; `/login` page, `POST /api/auth/login` and `/api/auth/logout`; signed session cookie (`lib/auth/session.ts`); lockout in Postgres (`lib/core/auth.ts`, 5 fails -> 15 min). 10 new tests (114 total); typecheck, lint, test, build pass. Cuts v0.3.0 (milestone M3).
 **Next:** owner sets `APP_PASSWORD` and `SESSION_SECRET` in Vercel (Production and Preview) before merging, or the site stays locked; tag `v0.3.0` after merge. Then M4a.
