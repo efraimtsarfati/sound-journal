@@ -4,6 +4,14 @@ import { z } from "zod";
 import pkg from "../../package.json";
 import {
   CoreError,
+  addEntryForAgent,
+  addHighlight,
+  restoreEntry,
+  restoreHighlight,
+  setHighlightTags,
+  softDeleteEntry,
+  softDeleteHighlight,
+  updateHighlight,
   getConnectorSettings,
   getEntryForAgent,
   getTaxonomy,
@@ -14,6 +22,7 @@ import {
   type AgentHighlight,
 } from "../core";
 import type { Db } from "../db";
+import type { fetchOEmbed } from "../sources/youtube";
 
 export const MCP_SERVER_NAME = "sound-journal";
 
@@ -68,12 +77,29 @@ function describeEntry(e: AgentEntry): string {
 
 const dateInput = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}/, "Use an ISO date such as 2026-01-31.")
-  .describe("ISO date (YYYY-MM-DD)");
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date written YYYY-MM-DD, such as 2026-01-31.")
+  .describe("Calendar date YYYY-MM-DD in the user's time zone");
+
+/** The house rules sent to every connected agent (docs/mcp-server.md, "Server instructions"). */
+export const SERVER_INSTRUCTIONS = [
+  "You are connected to the user's Sound Journal: a library of moments in music and why they matter to the user.",
+  "1. At the start of any Sound Journal task, call `list_inbox` and mention anything waiting.",
+  "2. Before tagging, call `get_taxonomy`. Reuse existing tags when the meaning fits; create new tags only when nothing fits. New tags are proposals the user will review.",
+  "3. Tag only what the user's note says. Never tag a highlight with no note — ask the user why they saved it.",
+  "4. When the user describes a technique in plain words, use the precise term as the tag and briefly explain it to them.",
+  "5. Genres are not tags. Don't tag artist genres.",
+  "6. Never invent tracks, links or timestamps. Before saving or suggesting a track, confirm it exists (find its YouTube or Spotify link). If you can't, say so.",
+  '7. When saving from a description ("around where the guitars come in"), give your best timestamp and tell the user it\'s approximate so they can adjust it in the app.',
+  '8. Match entries to MusicBrainz only when confident; otherwise use `confidence: "low"` and let the user confirm.',
+].join("\n");
 
 /** Builds a stateless MCP server for one verified user. Every tool re-checks the connector switches. */
-export function createMcpServer(db: Db, userId: string): McpServer {
-  const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version });
+export function createMcpServer(
+  db: Db,
+  userId: string,
+  deps: NonNullable<Parameters<typeof fetchOEmbed>[1]> = {},
+): McpServer {
+  const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version }, { instructions: SERVER_INSTRUCTIONS });
 
   /** Runs `fn` only when the switches allow it; a CoreError becomes a readable refusal. */
   async function guarded(need: Need, fn: () => Promise<CallToolResult>): Promise<CallToolResult> {
@@ -91,7 +117,9 @@ export function createMcpServer(db: Db, userId: string): McpServer {
       return await fn();
     } catch (e) {
       if (e instanceof CoreError) return refusal(e.message);
-      throw e;
+      // Never hand raw database or runtime errors to the agent; log them where the owner can see them.
+      console.error("MCP tool failed", e);
+      return refusal("Something went wrong on the server; try again.");
     }
   }
 
@@ -162,12 +190,7 @@ export function createMcpServer(db: Db, userId: string): McpServer {
     },
     ({ from, to, ...rest }) =>
       guarded("read", async () => {
-        const f = from ? new Date(from) : undefined;
-        const t = to ? new Date(to) : undefined;
-        if ((f && Number.isNaN(f.getTime())) || (t && Number.isNaN(t.getTime()))) {
-          return refusal("from and to must be valid ISO dates.");
-        }
-        const items = await searchHighlights(db, userId, { ...rest, from: f, to: t });
+        const items = await searchHighlights(db, userId, { ...rest, from, to });
         const text = items.length ? `${items.length} match(es):\n${items.map(describeHighlight).join("\n")}` : "No matching highlights.";
         return ok(text, { highlights: items });
       }),
@@ -208,6 +231,191 @@ export function createMcpServer(db: Db, userId: string): McpServer {
           ? `${page.items.map(describeEntry).join("\n")}${page.nextCursor ? `\nMore available: cursor ${page.nextCursor}` : ""}`
           : "No entries.";
         return ok(text, { entries: page.items, nextCursor: page.nextCursor });
+      }),
+  );
+
+  const writes = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false } as const;
+  const idempotentWrite = { ...writes, idempotentHint: true } as const;
+  const destructive = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false } as const;
+  const sec = z.number().int().min(0).max(86_400);
+
+  const highlightInput = z.object({
+    start_sec: sec.optional().describe("Start in whole seconds; omit for the whole song"),
+    end_sec: sec.optional().describe("End in whole seconds, after start_sec"),
+    note: z.string().max(5000).optional().describe("The user's own words about why this moment matters; omit if they gave none"),
+  });
+
+  server.registerTool(
+    "add_entry",
+    {
+      title: "Add entry",
+      description:
+        "Save a YouTube link to the journal with optional highlights. If the link is already saved, the highlights are added to the existing entry instead. Pass a clean song `title` and `artists` you are sure of; if `title` is omitted it is read from YouTube, and the call is refused if that fails. A highlight without a note is saved as needs_why.",
+      inputSchema: {
+        url: z.string().url().describe("A YouTube link (required in v1)"),
+        title: z.string().min(1).max(300).optional(),
+        artists: z.array(z.string().min(1).max(200)).max(10).optional(),
+        album: z.string().min(1).max(300).optional(),
+        original_release_year: z.number().int().min(1000).max(3000).optional(),
+        highlights: z.array(highlightInput).max(20).optional().describe("Omit for one whole-song highlight"),
+      },
+      annotations: writes,
+    },
+    (a) =>
+      guarded("changes", async () => {
+        const r = await addEntryForAgent(
+          db,
+          userId,
+          {
+            url: a.url,
+            title: a.title,
+            artists: a.artists,
+            album: a.album,
+            originalReleaseYear: a.original_release_year,
+            highlights: a.highlights?.map((h) => ({ startSec: h.start_sec, endSec: h.end_sec, note: h.note })),
+          },
+          deps,
+        );
+        const lines = r.highlights.map((h) => `- highlight ${h.id} [${h.status}] ${h.startSec === null ? "whole song" : mmss(h.startSec)}`);
+        const head = r.created
+          ? `Saved "${r.entry.title}" (entry ${r.entry.id}).`
+          : `That link is already saved as "${r.entry.title}" (entry ${r.entry.id}); ${r.highlights.length ? "highlights were added to it" : "nothing was added"}.`;
+        const ignored = r.ignored.length ? `\nIgnored: ${r.ignored.join("; ")}.` : "";
+        return ok(`${head}${lines.length ? `\n${lines.join("\n")}` : ""}${ignored}`, {
+          created: r.created,
+          entry: r.entry,
+          highlights: r.highlights,
+          ignored: r.ignored,
+        });
+      }),
+  );
+
+  server.registerTool(
+    "add_highlight",
+    {
+      title: "Add highlight",
+      description: "Add a highlight to a saved entry. A note is optional; without one it is saved as needs_why.",
+      inputSchema: { entry_id: z.string().uuid(), ...highlightInput.shape },
+      annotations: writes,
+    },
+    ({ entry_id, start_sec, end_sec, note }) =>
+      guarded("changes", async () => {
+        const h = await addHighlight(db, userId, entry_id, { startSec: start_sec, endSec: end_sec, note });
+        return ok(`Added highlight ${h.id} [${h.status}] to entry ${entry_id}.`, { highlight: h });
+      }),
+  );
+
+  server.registerTool(
+    "update_highlight",
+    {
+      title: "Update highlight",
+      description:
+        "Edit a highlight's note and/or times; fields you omit stay as they are, null clears. Changing the note sends it back for tagging (needs_tags), or to needs_why if cleared; tags are kept. Changing only times keeps the status.",
+      inputSchema: {
+        highlight_id: z.string().uuid(),
+        note: z.string().max(5000).nullable().optional(),
+        start_sec: sec.nullable().optional(),
+        end_sec: sec.nullable().optional(),
+      },
+      annotations: idempotentWrite,
+    },
+    ({ highlight_id, note, start_sec, end_sec }) =>
+      guarded("changes", async () => {
+        const h = await updateHighlight(db, userId, highlight_id, { note, startSec: start_sec, endSec: end_sec });
+        return ok(`Updated highlight ${h.id} [${h.status}].`, { highlight: h });
+      }),
+  );
+
+  server.registerTool(
+    "set_highlight_tags",
+    {
+      title: "Set highlight tags",
+      description:
+        "Set the highlight's full tag list. Tags already on it are kept, new ones are attached, missing ones are removed. Unknown names are created as proposed tags for the user to review; merged names resolve to the surviving tag. Refused if the highlight has no note (needs_why). An empty list removes all tags.",
+      inputSchema: {
+        highlight_id: z.string().uuid(),
+        tags: z
+          .array(z.object({ name: z.string().min(1).max(100), axis: z.string().min(1).max(40) }))
+          .max(30)
+          .describe("Lowercase names of 1-4 words; axis is an id from get_taxonomy"),
+      },
+      annotations: idempotentWrite,
+    },
+    ({ highlight_id, tags }) =>
+      guarded("changes", async () => {
+        const r = await setHighlightTags(db, userId, highlight_id, tags);
+        const text = [
+          `Highlight ${r.highlight.id} is now ${r.highlight.status}.`,
+          r.added.length ? `Added: ${r.added.map((t) => t.name).join(", ")}.` : "",
+          r.created.length ? `New proposed tags: ${r.created.map((t) => t.name).join(", ")}.` : "",
+          r.removedTagIds.length ? `Removed ${r.removedTagIds.length} tag(s).` : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+        return ok(text, {
+          highlight: r.highlight,
+          added: r.added.map((t) => ({ id: t.id, name: t.name, axis: t.axis, state: t.state })),
+          created: r.created.map((t) => ({ id: t.id, name: t.name, axis: t.axis, state: t.state })),
+          removedTagIds: r.removedTagIds,
+        });
+      }),
+  );
+
+  server.registerTool(
+    "delete_highlight",
+    {
+      title: "Delete highlight",
+      description:
+        "Soft-delete one highlight (the user can restore it for 30 days). Refused if it is the entry's last highlight; use delete_entry then. Needs the connector's delete switch.",
+      inputSchema: { highlight_id: z.string().uuid() },
+      annotations: destructive,
+    },
+    ({ highlight_id }) =>
+      guarded("deletes", async () => {
+        await softDeleteHighlight(db, userId, highlight_id);
+        return ok(`Deleted highlight ${highlight_id}. It can be restored for 30 days.`, { deleted: { highlightId: highlight_id } });
+      }),
+  );
+
+  server.registerTool(
+    "delete_entry",
+    {
+      title: "Delete entry",
+      description:
+        "Soft-delete an entry and all its highlights (the user can restore it for 30 days). Pass confirm: true. Needs the connector's delete switch.",
+      inputSchema: { entry_id: z.string().uuid(), confirm: z.literal(true).describe("Must be true") },
+      annotations: destructive,
+    },
+    ({ entry_id }) =>
+      guarded("deletes", async () => {
+        await softDeleteEntry(db, userId, entry_id);
+        return ok(`Deleted entry ${entry_id} and its highlights. It can be restored for 30 days.`, { deleted: { entryId: entry_id } });
+      }),
+  );
+
+  server.registerTool(
+    "restore_deleted",
+    {
+      title: "Restore deleted",
+      description:
+        "Undo a soft delete within 30 days. Give exactly one of entry_id (restores the entry and the highlights deleted with it) or highlight_id (a single highlight whose entry is still saved).",
+      inputSchema: { entry_id: z.string().uuid().optional(), highlight_id: z.string().uuid().optional() },
+      annotations: idempotentWrite,
+    },
+    ({ entry_id, highlight_id }) =>
+      guarded("changes", async () => {
+        if (!entry_id === !highlight_id) return refusal("Give exactly one of entry_id or highlight_id.");
+        if (highlight_id) {
+          const h = await restoreHighlight(db, userId, highlight_id);
+          return ok(`Restored highlight ${h.id} [${h.status}].`, { restored: { highlight: h } });
+        }
+        const r = await restoreEntry(db, userId, entry_id!);
+        if (!r.restored) {
+          return refusal(
+            `Not restored: you already have "${r.conflict.title}" (entry ${r.conflict.id}) saved from the same link. The user can choose in the web app whether to move the old highlights onto it.`,
+          );
+        }
+        return ok(`Restored entry "${r.entry.title}" (${r.entry.id}).`, { restored: { entry: r.entry } });
       }),
   );
 

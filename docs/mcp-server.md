@@ -5,7 +5,15 @@ Sound Journal exposes a remote MCP server so the owner can connect their own age
 - **Endpoint:** `${APP_ORIGIN}/api/mcp`
 - **Auth:** OAuth 2.1 (discovery at `/.well-known/oauth-authorization-server` and `/.well-known/oauth-protected-resource`, dynamic client registration, consent page). Any MCP client that supports remote servers with OAuth can connect. Decided in M5a: the consent page asks for the owner's `APP_PASSWORD` (the same check and the same 5-fails/15-minute lockout as the login page, no separate PIN); the authorization code lives 60 seconds, the access token 1 hour, the refresh token 90 days (sliding, rotated on use); PKCE `S256` only; `APP_ORIGIN` must be set or discovery and consent refuse to work.
 - **Server info:** name `sound-journal`, version from `package.json` (so an agent can tell which release it's connected to).
-- **Connector switches** (set in the web app): `enabled`, `allowChanges`, `allowDeletes`. Every tool checks them and returns a refusal naming the switch, never an empty result.
+- **Connector switches:** `enabled`, `allowChanges`, `allowDeletes` (defaults: on, on, off). Every tool checks them and returns a refusal naming the switch, never an empty result. **The web app has no settings page for them yet** (owner decision pending). Until it does, flip a switch by hand in the Neon SQL editor (or any `psql` session) against the production database:
+
+  ```sql
+  -- columns: mcp_enabled, mcp_allow_changes, mcp_allow_deletes
+  update settings set mcp_allow_deletes = true where user_id = '00000000-0000-4000-8000-000000000001';
+  ```
+
+  The change applies on the agent's next tool call (the switches are read on every call). Set the column back to `false` to switch it off again.
+- **Server errors:** a rule of the journal that is broken (not found, missing note, last highlight, bad input) comes back as a readable refusal. Anything unexpected is logged on the server and the agent only sees "Something went wrong on the server; try again.", never database text.
 
 ## Tools (v1)
 
@@ -17,19 +25,19 @@ All tools call `lib/core` functions only. Read tools are annotated `readOnlyHint
 |---|---|---|
 | `list_inbox` | `limit?` | Highlights in `needs_why` and `needs_tags`, with entry title/artist, timestamps and note |
 | `get_taxonomy` | — | Axes (from `axes.json`) and every approved/proposed tag with axis, state and usage count; rejected slugs |
-| `search_highlights` | `query?` (meaning search; until the search index exists in M6, a case-insensitive text match on the note with no score), `tags?`, `axis?`, `artist?`, `status?`, `from?`/`to?` (captured date), `limit?` | Matching highlights with entry info, tags and a similarity score when `query` is used |
+| `search_highlights` | `query?` (meaning search; until the search index exists in M6, a case-insensitive text match on the note with no score), `tags?`, `axis?`, `artist?`, `status?`, `from?`/`to?` (captured date, `YYYY-MM-DD`, read in the user's `settings.time_zone`; `from` is inclusive, `to` exclusive; dates that are not on the calendar, such as `2026-02-30`, are refused), `limit?` | Matching highlights with entry info, tags and a similarity score when `query` is used |
 | `get_entry` | `entry_id` or `url` | The entry, its sources, artists, genres and all highlights |
-| `list_entries` | `limit?`, `cursor?`, `artist?` | Entries, newest first |
+| `list_entries` | `limit?`, `cursor?`, `artist?` | Entries, newest first. `cursor` is the opaque `nextCursor` of the previous page (an offset no larger than 1,000,000) |
 
 ### Change
 
 | Tool | Input | Effect |
 |---|---|---|
-| `add_entry` | `url` (YouTube, **required in v1**); optional clean `title`, `artists`, `album`, `original_release_year`; `highlights: [{start_sec?, end_sec?, note?}]` | Creates the entry and highlights (or adds highlights to the existing entry if the URL is already saved). Returns IDs and statuses |
+| `add_entry` | `url` (YouTube, **required in v1**); optional clean `title`, `artists`, `album`, `original_release_year`; `highlights: [{start_sec?, end_sec?, note?}]` | Creates the entry and highlights (or adds highlights to the existing entry if the URL is already saved; the other fields are then ignored and the result says so). With no `highlights`, one whole-song `needs_why` highlight is created for a new entry. If `title` is omitted it is read from YouTube's oEmbed, and the call is refused if that gives nothing (a title is never invented). Artists are shared reference rows, reused by normalized name; MusicBrainz IDs come with `match_entry` in M7. Returns IDs and statuses |
 | `add_highlight` | `entry_id`, `start_sec?`, `end_sec?`, `note?` | Adds a highlight |
-| `update_highlight` | `highlight_id`, `note?`, `start_sec?`, `end_sec?` | Edits; status changes follow the [transition rules](data-model.md#highlight-workflow-highlightsstatus) |
+| `update_highlight` | `highlight_id`, `note?`, `start_sec?`, `end_sec?` (omitted = unchanged, `null` clears; at least one is required) | Edits; a times-only change keeps the status, otherwise status changes follow the [transition rules](data-model.md#highlight-workflow-highlightsstatus) |
 | `set_highlight_tags` | `highlight_id`, `tags: [{name, axis}]` | Sets the highlight's full tag list **as a diff**: tags already on it are kept with their original `added_at`; new ones are attached with `added_at = now`; missing ones are detached. Unknown names are created as `proposed`; merged names resolve to the surviving tag. Status → `tagged`, or `needs_tags` if the list is empty. Refused if the highlight is `needs_why` |
-| `match_entry` | `entry_id`, `mbid`, `confidence: "high" \| "low"` | Stores the MusicBrainz match; `high` → `matched`, `low` → stays `unmatched` for the user to confirm. Fetches artist genres |
+| `match_entry` (**built in M7**, with the MusicBrainz adapter; not in the server before then) | `entry_id`, `mbid`, `confidence: "high" \| "low"` | Stores the MusicBrainz match; `high` → `matched`, `low` → stays `unmatched` for the user to confirm. Fetches artist genres |
 
 ### Delete (needs `allowDeletes`)
 
@@ -37,13 +45,13 @@ All tools call `lib/core` functions only. Read tools are annotated `readOnlyHint
 |---|---|---|
 | `delete_highlight` | `highlight_id` | Soft-deletes it (restorable for 30 days). Refused if it's the entry's last highlight — use `delete_entry` |
 | `delete_entry` | `entry_id`, `confirm: true` | Soft-deletes the entry and its highlights (restorable for 30 days) |
-| `restore_deleted` | `entry_id` or `highlight_id` | Undoes a soft delete (needs only `allowChanges`) |
+| `restore_deleted` | `entry_id` or `highlight_id` | Undoes a soft delete (needs only `allowChanges`). An entry comes back with the highlights deleted with it; if the same link was saved again meanwhile it is refused and names that entry. A single highlight can be restored only while its entry is live |
 
 Approving, merging and rejecting tags is done by the user in the web app in v1, not by the agent.
 
 ## Server instructions (sent to every connected agent)
 
-The server's `instructions` field is the house rules. Draft:
+The server's `instructions` field is the house rules, sent in the `initialize` result (the text lives in `SERVER_INSTRUCTIONS` in `lib/mcp/server.ts` and must match this list). Rule 8 refers to `match_entry`, which arrives in M7.
 
 > You are connected to the user's Sound Journal: a library of moments in music and why they matter to the user.
 > 1. At the start of any Sound Journal task, call `list_inbox` and mention anything waiting.
