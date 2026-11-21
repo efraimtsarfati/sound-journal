@@ -97,7 +97,8 @@ Postgres is the source of truth; the vector index is a derived copy.
 ## Authentication
 
 - **Web app (v1):** single owner. Password from an env var, signed session cookie, failed-attempt lockout — reuse the macro-log pattern, with state stored in Postgres (see [data model](data-model.md#auth-and-settings-tables)).
-- **Middleware:** everything requires a session except `/login`, `/api/auth/*`, `/api/health`, and the paths that do their own auth: `/.well-known/*`, `/oauth/authorize`, `/api/oauth/*`, `/api/mcp` (bearer token), `/api/cron/*` (must check `Authorization: Bearer ${CRON_SECRET}` and fail closed).
+- **Session and lockout (decided in M3):** the cookie `sj_session` is `<expiry>.<HMAC-SHA256>` signed with `SESSION_SECRET` (30 days, httpOnly, SameSite=Lax, Secure in production); logout clears it. 5 wrong passwords lock the `login` key in `auth_attempts` for 15 minutes; a locked key refuses even the right password, and success resets the count. Without `APP_PASSWORD` or `SESSION_SECRET` everything stays locked. Logic: `lib/core/auth.ts`, `lib/auth/session.ts`.
+- **Middleware (`proxy.ts`, Next 16's name for middleware):** everything requires a session except `/login`, `/api/auth/*`, `/api/health`, and the paths that do their own auth: `/.well-known/*`, `/oauth/authorize`, `/api/oauth/*`, `/api/mcp` (bearer token), `/api/cron/*` (must check `Authorization: Bearer ${CRON_SECRET}` and fail closed).
 - **MCP (v1):** OAuth 2.1 authorization server inside the app — discovery under `/.well-known/*`, dynamic client registration, PIN consent page, short-lived access tokens and refresh tokens stored only as hashes. Reuse the macro-log pattern.
 - **Later (multi-user):** replace the owner password with real accounts. Because every row already carries `user_id` and every query is scoped by it, this change is contained to the auth layer and the consent page. This is the largest planned change; see [roadmap](roadmap.md).
 

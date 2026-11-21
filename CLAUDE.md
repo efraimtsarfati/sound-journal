@@ -44,3 +44,4 @@ Short, durable lessons promoted from `docs/dev-log.md` by the wrap-up skill. Kee
 - Neon branch-per-preview isn't active; previews share the production DB, so previews never migrate (only `VERCEL_ENV=production` runs `drizzle-kit migrate`).
 - The working copy lives outside OneDrive (`C:\Users\efrai\dev\sound-journal`); don't move it into a synced folder.
 - In the Bash tool, large heredocs containing quotes can fail with "unexpected EOF" and write nothing; create files with the Write tool.
+- Next 16 calls middleware `proxy.ts` (Node runtime); the auth gate lives there.

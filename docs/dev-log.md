@@ -4,6 +4,13 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-21 — M3 — Owner login (PR #10)
+**State:** done. `proxy.ts` gates everything except the documented exemptions; `/login` page, `POST /api/auth/login` and `/api/auth/logout`; signed session cookie (`lib/auth/session.ts`); lockout in Postgres (`lib/core/auth.ts`, 5 fails -> 15 min). 10 new tests (114 total); typecheck, lint, test, build pass. Cuts v0.3.0 (milestone M3).
+**Next:** owner sets `APP_PASSWORD` and `SESSION_SECRET` in Vercel (Production and Preview) before merging, or the site stays locked; tag `v0.3.0` after merge. Then M4a.
+**Gotchas:**
+- Next 16 renamed `middleware.ts` to `proxy.ts` (Node runtime), so `node:crypto` works there.
+- Lockout thresholds weren't in the docs (macro-log not available); chose 5 fails / 15 min and recorded them in architecture.
+
 ## 2026-11-21 — M2c — lib/core hardening: advisory lock and row locks (PR #9)
 **State:** done. `addEntry` checks and inserts under a per-source advisory lock (`lockSource`, exported for M4c restore); tag rows are locked `FOR UPDATE` in set/approve/reject/rename/merge (fixed order, `ON CONFLICT DO NOTHING` on tag create); `addHighlight`, `setHighlightNote`, `approveTag` are now transactional. 8 new tests (104 total); typecheck, lint, test, build pass. Not user-visible, no changelog line.
 **Next:** merge PR #9, then M3 (asks for `APP_PASSWORD` and `SESSION_SECRET`).
