@@ -25,7 +25,7 @@ What already exists, and the platform constraints the design responds to. Checke
 
 ### Upstash
 - Free Redis accounts get one database ([Upstash](https://upstash.com/docs/redis/overall/pricing)) — already used by macro-log.
-- Upstash Vector can embed raw text with a hosted model chosen at index creation ([Upstash](https://upstash.com/docs/vector/features/embeddingmodels)); the listed dense model is `openai/text-embedding-3-small` (1536 dimensions). Free tier allows 10K queries/updates per day and up to 1536 dimensions. Not yet confirmed: whether hosted embedding is included in the free plan at no cost — check before M6.
+- Upstash Vector can embed raw text with a hosted model chosen at index creation ([Upstash](https://upstash.com/docs/vector/features/embeddingmodels)); the listed dense model is `openai/text-embedding-3-small` (1536 dimensions). Free tier allows 10K queries/updates per day and up to 1536 dimensions. The pricing page ([Upstash](https://upstash.com/pricing/vector)) doesn't mention embedding costs. Confirmed in practice on 2026-11-21: the console allows that model on the Free plan, and a Free index only moves to pay-as-you-go once a card is added. BGE models are no longer offered for new indexes.
 
 ### Neon
 - Free plan: 100 projects, 10 branches per project, 100 CU-hours per project per month, 1 GB storage per project, 20 GB total. ([Neon](https://neon.com/faqs/free-plan-limits-and-quotas))
