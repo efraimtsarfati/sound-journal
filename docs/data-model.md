@@ -119,6 +119,8 @@ Kept separate from the user's tags on purpose: genre describes the artist; tags 
 Rules:
 - **Every live entry has at least one live highlight.** Saving a whole song creates one highlight with `start_sec = null`. Deleting the last highlight of an entry is refused; delete the entry instead.
 - A whole-work highlight (`start_sec = null`) can coexist with timestamped highlights on the same entry.
+- **One live entry per source per user.** The duplicate check and the insert run in one transaction under a per-source advisory lock; restoring a soft-deleted entry takes the same lock and is refused if a live entry already has that source (its highlights can be moved onto the live entry instead).
+- **Purge:** soft-deleted entries and highlights older than 30 days are hard-deleted by the daily cleanup cron (`/api/cron/cleanup`), along with their vectors.
 - `end_sec` requires `start_sec`, and `end_sec > start_sec` (database check constraints).
 
 ### `tags` — the user's vocabulary

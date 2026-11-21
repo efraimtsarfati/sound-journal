@@ -4,6 +4,12 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 
 ---
 
+## 2026-11-20 — chore — Open items after M2 (PR #8)
+**State:** done. Checked production: the M2a deploy's build log shows `drizzle-kit migrate` → "migrations applied successfully", and the M2b deploy is live; the production DB is on the single `0000_init` migration. M2b's deferred review items became slice **M2c** (core hardening). Restore-duplicate rule added to M4c and the data model. The 30-day purge now runs in M5a's daily cleanup cron. Neon branch-per-preview is off by decision (architecture → Environments); turning it on is a roadmap item. M2b and the M2 review row ticked.
+**Next:** `/autopilot until M3` (M2c needs no human steps; M3 will ask for `APP_PASSWORD` and `SESSION_SECRET`).
+**Gotchas:**
+- Production builds warn that `engines.node: 24.x` overrides the project's Node 26 setting — harmless; align them if it ever matters.
+
 ## 2026-11-20 — M2b — lib/core: entries, highlights, status transitions, tag lifecycle, soft delete (PR #7)
 **State:** done. `lib/core` has `addEntry`, `findDuplicateEntry`, `addHighlight`, `setHighlightNote`, `setHighlightTags`, tag approve/reject/rename/merge/remove, soft delete; 44 new tests (96 total); typecheck, lint, test, build pass. Cuts v0.2.0 (milestone M2).
 **Next:** merge PR #7 after the M2 review (`pr-reviewer`, Opus); tag `v0.2.0`; then M3.
