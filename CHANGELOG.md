@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+- Connecting an agent failed with "Cross-origin request": the consent page sent `Referrer-Policy: no-referrer`, so browsers posted the approval form with `Origin: null`. It now uses `same-origin`.
+
 ## [0.5.0] — 2026-11-21
 
 ### Added
