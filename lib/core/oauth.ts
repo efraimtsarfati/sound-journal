@@ -90,7 +90,12 @@ export async function getClient(db: Db, clientId: string): Promise<OauthClient |
 export type AuthorizeCheck =
   | { ok: true; client: OauthClient }
   /** The client or redirect URI is not trusted: show an error page, never redirect. */
-  | { ok: false; redirect: false; error: "invalid_client" | "invalid_redirect_uri"; description: string }
+  | {
+      ok: false;
+      redirect: false;
+      error: "invalid_client" | "invalid_redirect_uri";
+      description: string;
+    }
   /** Safe to send the error back to the (validated) redirect URI. */
   | {
       ok: false;

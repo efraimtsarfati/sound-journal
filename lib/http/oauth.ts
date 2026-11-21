@@ -2,6 +2,7 @@ import { appOrigin } from "../auth/oauth-metadata";
 import {
   MAX_REGISTRATION_BYTES,
   OWNER_USER_ID,
+  allowRegistration,
   attemptLogin,
   buildRedirect,
   checkAuthorizeRequest,
@@ -12,11 +13,13 @@ import {
   readAuthorizeParams,
   refreshAccessToken,
   registerClient,
+  type AuthorizeCheck,
   type AuthorizeParams,
   type TokenResult,
 } from "../core";
 import type { Db } from "../db";
 import { withCors } from "./cors";
+import { clientIp } from "./ip";
 
 export type OAuthEnv = { APP_ORIGIN?: string; APP_PASSWORD?: string };
 
@@ -31,7 +34,16 @@ function oauthError(status: number, error: string, description?: string): Respon
 }
 
 /** POST /api/oauth/register (RFC 7591), public clients only. */
-export async function handleRegister(request: Request, db: Db): Promise<Response> {
+export async function handleRegister(request: Request, db: Db, now: Date = new Date()): Promise<Response> {
+  // 10 registrations per client IP per hour, on top of the client cap. Counted before reading the body.
+  if (!(await allowRegistration(db, clientIp(request), now))) {
+    return withCors(
+      Response.json(
+        { error: "temporarily_unavailable", error_description: "Too many registrations from this address. Try again later." },
+        { status: 429, headers: { ...NO_STORE, "Retry-After": "3600" } },
+      ),
+    );
+  }
   const declared = Number(request.headers.get("content-length") ?? "0");
   if (declared > MAX_REGISTRATION_BYTES) return oauthError(413, "invalid_client_metadata", "Body too large.");
   const text = await request.text();
@@ -125,6 +137,19 @@ function redirect(location: string): Response {
   return new Response(null, { status: 303, headers: { Location: location, ...NO_STORE } });
 }
 
+function escapeHtml(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+/** The consent error page for a request whose client or redirect URI is not trusted. It never redirects and has no link. */
+function untrustedPage(check: Extract<AuthorizeCheck, { redirect: false }>): Response {
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cannot connect · Sound Journal</title></head><body style="font-family:system-ui,sans-serif;max-width:24rem;margin:1.5rem auto;padding:0 1rem"><h1>Cannot connect</h1><p>This connection request is not valid (${escapeHtml(check.error)}). Nothing was sent to the app. You can close this tab.</p></body></html>`;
+  return new Response(html, {
+    status: 400,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "frame-ancestors 'none'", ...NO_STORE },
+  });
+}
+
 function plain(status: number, error: string, description: string): Response {
   return json({ error, error_description: description }, status);
 }
@@ -165,7 +190,7 @@ export async function handleConsent(
   }
   const p = readAuthorizeParams(form);
   const check = await checkAuthorizeRequest(db, p, origin);
-  if (!check.ok && !check.redirect) return plain(400, check.error, check.description);
+  if (!check.ok && !check.redirect) return untrustedPage(check);
   if (!check.ok) {
     return redirect(
       buildRedirect(check.redirectUri, {
@@ -188,7 +213,9 @@ export async function handleConsent(
   };
   if (!env.APP_PASSWORD) return back("config");
   const password = form.get("password");
-  const result = await attemptLogin(db, env.APP_PASSWORD, typeof password === "string" ? password : "", now);
+  const result = await attemptLogin(db, env.APP_PASSWORD, typeof password === "string" ? password : "", now, {
+    ip: clientIp(request),
+  });
   if (!result.ok) return back(result.reason);
 
   const code = await issueAuthorizationCode(

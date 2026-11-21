@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { attemptLogin } from "@/lib/core";
 import { getDb } from "@/lib/db";
+import { clientIp } from "@/lib/http/ip";
 import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SEC,
@@ -27,7 +28,9 @@ export async function POST(request: Request) {
   const secret = process.env.SESSION_SECRET;
   if (!process.env.APP_PASSWORD || !secret) return back(request, "config", next);
 
-  const result = await attemptLogin(getDb(), process.env.APP_PASSWORD, password);
+  const result = await attemptLogin(getDb(), process.env.APP_PASSWORD, password, new Date(), {
+    ip: clientIp(request),
+  });
   if (!result.ok) return back(request, result.reason, next);
 
   const res = NextResponse.redirect(new URL(next, request.url), 303);

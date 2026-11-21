@@ -34,7 +34,11 @@ export default async function AuthorizePage({
   const p = readAuthorizeParams(sp);
   const check = await checkAuthorizeRequest(getDb(), p, origin);
   if (!check.ok && !check.redirect) {
-    return <Notice title="Cannot connect">This connection request is not valid ({check.error}). Go back to the app and try again.</Notice>;
+    return (
+      <Notice title="Cannot connect">
+        This connection request is not valid ({check.error}). Nothing was sent to the app. You can close this tab.
+      </Notice>
+    );
   }
   if (!check.ok) {
     redirect(

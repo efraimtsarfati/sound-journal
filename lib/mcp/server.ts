@@ -80,8 +80,15 @@ const dateInput = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date written YYYY-MM-DD, such as 2026-01-31.")
   .describe("Calendar date YYYY-MM-DD in the user's time zone");
 
-/** The house rules sent to every connected agent (docs/mcp-server.md, "Server instructions"). */
-export const SERVER_INSTRUCTIONS = [
+/**
+ * The house rules sent to every connected agent (docs/mcp-server.md, "Server instructions").
+ * Rule 8 talks about `match_entry`, so it is sent only when that tool is registered (M7).
+ */
+export function serverInstructions(tools: { matchEntry: boolean }): string {
+  return [...BASE_INSTRUCTIONS, ...(tools.matchEntry ? [MATCH_ENTRY_INSTRUCTION] : [])].join("\n");
+}
+
+const BASE_INSTRUCTIONS = [
   "You are connected to the user's Sound Journal: a library of moments in music and why they matter to the user.",
   "1. At the start of any Sound Journal task, call `list_inbox` and mention anything waiting.",
   "2. Before tagging, call `get_taxonomy`. Reuse existing tags when the meaning fits; create new tags only when nothing fits. New tags are proposals the user will review.",
@@ -90,8 +97,13 @@ export const SERVER_INSTRUCTIONS = [
   "5. Genres are not tags. Don't tag artist genres.",
   "6. Never invent tracks, links or timestamps. Before saving or suggesting a track, confirm it exists (find its YouTube or Spotify link). If you can't, say so.",
   '7. When saving from a description ("around where the guitars come in"), give your best timestamp and tell the user it\'s approximate so they can adjust it in the app.',
-  '8. Match entries to MusicBrainz only when confident; otherwise use `confidence: "low"` and let the user confirm.',
-].join("\n");
+];
+
+const MATCH_ENTRY_INSTRUCTION =
+  '8. Match entries to MusicBrainz only when confident; otherwise use `confidence: "low"` and let the user confirm.';
+
+/** Flip to true in M7, in the same change that registers `match_entry`. */
+const REGISTERS_MATCH_ENTRY = false;
 
 /** Builds a stateless MCP server for one verified user. Every tool re-checks the connector switches. */
 export function createMcpServer(
@@ -99,7 +111,7 @@ export function createMcpServer(
   userId: string,
   deps: NonNullable<Parameters<typeof fetchOEmbed>[1]> = {},
 ): McpServer {
-  const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version }, { instructions: SERVER_INSTRUCTIONS });
+  const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version }, { instructions: serverInstructions({ matchEntry: REGISTERS_MATCH_ENTRY }) });
 
   /** Runs `fn` only when the switches allow it; a CoreError becomes a readable refusal. */
   async function guarded(need: Need, fn: () => Promise<CallToolResult>): Promise<CallToolResult> {
@@ -110,6 +122,9 @@ export function createMcpServer(
       }
       if (need === "changes" && !s.allowChanges) {
         return refusal(`Changes through the connector are switched off. Ask the user to turn on "${SWITCH_NAME.changes}" in the web app settings.`);
+      }
+      if (need === "deletes" && !s.allowChanges) {
+        return refusal(`Deleting needs changes to be allowed first. Ask the user to turn on "${SWITCH_NAME.changes}" in the web app settings.`);
       }
       if (need === "deletes" && !s.allowDeletes) {
         return refusal(`Deleting through the connector is switched off. Ask the user to turn on "${SWITCH_NAME.deletes}" in the web app settings.`);

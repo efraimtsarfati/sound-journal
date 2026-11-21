@@ -150,9 +150,10 @@ describe("cleanupExpiredAuth", () => {
     await t.db.insert(authAttempts).values({ key: "expired-lock", fails: 5, lockedUntil: minutes(-1) });
     await t.db.insert(authAttempts).values({ key: "live-lock", fails: 5, lockedUntil: minutes(5) });
     await t.db.insert(authAttempts).values({ key: "counting", fails: 2 });
+    await t.db.insert(authAttempts).values({ key: "login:ip:203.0.113.5", fails: 2 });
 
     const r = await cleanupExpiredAuth(db, now);
-    expect(r).toEqual({ codes: 1, tokens: 2, grants: 1, clients: 1, attempts: 1 });
+    expect(r).toEqual({ codes: 1, tokens: 2, grants: 1, clients: 1, attempts: 2 });
 
     const ids = async (table: typeof oauthClients) => (await t.db.select().from(table)).map((c) => c.id).sort();
     expect(await ids(oauthClients)).toEqual(["new-orphan", "with-code", "with-grant"]);

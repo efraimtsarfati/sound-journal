@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, lt, lte, notExists, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, like, lt, lte, notExists, or, sql } from "drizzle-orm";
 import {
   authAttempts,
   entries,
@@ -106,7 +106,13 @@ export async function cleanupExpiredAuth(
       .returning({ id: oauthClients.id });
     const attempts = await tx
       .delete(authAttempts)
-      .where(and(isNotNull(authAttempts.lockedUntil), lte(authAttempts.lockedUntil, now)))
+      .where(
+        or(
+          and(isNotNull(authAttempts.lockedUntil), lte(authAttempts.lockedUntil, now)),
+          // Per-IP failure counts that never reached a lock have no expiry; the daily sweep resets them.
+          and(isNull(authAttempts.lockedUntil), like(authAttempts.key, "login:ip:%")),
+        ),
+      )
       .returning({ k: authAttempts.key });
     return {
       codes: codes.length,

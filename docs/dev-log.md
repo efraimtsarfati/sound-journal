@@ -3,6 +3,16 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M5d — Security and settings fixes (PR #19)
+**State:** done, no migration. Per-IP login and consent lockout (`login:ip:<ip>`) with a global 50/hour slow-down that never locks; register limited to 10/IP/hour (429); delete tools need `allowChanges` too; consent errors for an untrusted client or URI render an HTML error page with no link ("You can close this tab.", owner decision); `/settings` page with the three connector switches and connected apps with Revoke (`/api/settings/connector`, `/api/connections/[id]`); rule 8 (`match_entry`) is sent only when the tool is registered (`REGISTERS_MATCH_ENTRY` flag in `lib/mcp/server.ts`, flip it in M7). New `lib/core/rate-limit.ts`, `connector.ts`, `lib/http/ip.ts`. 315 tests; typecheck, lint, test, build pass. No release (M5 not finished).
+**Next:** M5e (PR #16 review items), then M5 review.
+**Gotchas:**
+- `attemptLogin` now reads the global counter through `db` before its transaction; test doubles that spread `...db` must also provide `select`.
+- Tests that register clients or log in from no IP share the `unknown` IP bucket; clear `auth_attempts` in `beforeEach`.
+**Doc drift:** mcp-server, architecture (Authentication), data-model (auth_attempts keys) updated.
+**Follow-ups:** owner decided the untrusted-consent error page has no "Return to app" link at all. Not tried in a browser or on a phone.
+
+---
 ## 2026-11-21 — fix — Consent page rejected every approval (PR #18)
 **State:** done. Connecting Claude failed with `{"error":"access_denied","error_description":"Cross-origin request."}`. Cause: `next.config.ts` set `Referrer-Policy: no-referrer` on `/oauth/authorize`, so browsers send `Origin: null` on the consent form POST, and `handleConsent`'s same-origin check rejects it. Now `same-origin` (still never leaks the URL cross-site); a config test guards it.
 **Next:** owner retries connecting Claude; then `/autopilot until M5 review`.
