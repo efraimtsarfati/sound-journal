@@ -3,7 +3,7 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
-## 2026-11-21 — M5f — M5 security-review fixes (PR #PRNUM)
+## 2026-11-21 — M5f — M5 security-review fixes (PR #23)
 **State:** done, one expand-only migration (`0001_oauth_code_tombstone`: nullable `oauth_codes.consumed_at` and `grant_id`). Connector switch rules now in `assertConnectorAllows` (`lib/core/connector.ts`), used by `guarded`; `add_entry` asks oEmbed before the transaction (5 s abort, skipped for already-saved links, result acted on only for a new entry), refuses 404 and every unverifiable result, keeps the agent title only for 401/403; `listGrants`/`revokeGrant` removed in favour of `listConnectedApps`/`revokeConnectedApp`; `checkSessionRequest` (`lib/http/session-request.ts`) guards the settings and revoke routes (logic moved to `lib/http/connector-routes.ts`, tested on PGlite); an exchanged code is kept as a tombstone until it expires and reusing it deletes its grant. Docs: architecture login-key nit, mcp-server accepted risks (no token audience binding, dynamic-client redirect), data-model `oauth_codes`. Release not cut (M5 review still to come).
 **Next:** M5 review (`pr-reviewer`, Opus) against M5a-M5f.
 **Gotchas:**
