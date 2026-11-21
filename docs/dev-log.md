@@ -3,7 +3,7 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
-## 2026-11-21 — M5a — OAuth 2.1 server, password consent, daily cleanup cron (PR #PRNUM)
+## 2026-11-21 — M5a — OAuth 2.1 server, password consent, daily cleanup cron (PR #14)
 **State:** done, no migration. `lib/auth/` (crypto, cron secret, OAuth metadata), `lib/core/oauth*.ts` and `cleanup.ts`, `lib/http/` handlers (register, token, consent, discovery, cron), routes under `/api/oauth/*`, `/.well-known/*`, `/oauth/authorize` page, `/api/cron/cleanup` + `vercel.json` cron. Consent uses `APP_PASSWORD` through the now-transactional `attemptLogin` (owner-approved change from the PIN draft). The `/api/mcp/` prefix exemption is gone (exact `/api/mcp` only). 69 new tests (261 total); typecheck, lint, test, build pass. No release (M5 not finished).
 **Next:** owner sets `CRON_SECRET` (16+ chars) and `APP_ORIGIN=https://sound-journal.vercel.app` in Vercel before merging; Opus review (`pr-reviewer`) of this PR per the build plan; then M5b (`mcp-tools`, serves exactly `/api/mcp`, 401 with `WWW-Authenticate` resource_metadata, uses `verifyAccessToken`).
 **Gotchas:**
