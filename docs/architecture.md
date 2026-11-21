@@ -119,10 +119,10 @@ If a limit becomes a problem, the fix is to upgrade that one service; nothing in
 |---|---|---|
 | Local dev | `npm run dev` | A Neon development branch |
 | Unit tests / CI | `npm test` (locally and in GitHub Actions) | PGlite, in memory, migrated from empty on every run |
-| Preview | Vercel preview deployment per PR | A Neon branch per preview via the Vercel–Neon integration, **with automatic branch deletion when the preview is removed**; Neon Free allows 10 branches per project. If that isn't reliable, fall back to one shared preview branch |
+| Preview | Vercel preview deployment per PR | **Shares the production database and never migrates** (decided 2026-11-20). Neon branch-per-preview is off: Neon Free allows 10 branches per project and autopilot opens PRs quickly. A preview of a schema-changing PR may error until it merges; that's accepted for a one-person app. Turning branch-per-preview on later is a roadmap item |
 | Production | Vercel production (`main`) | Neon main branch |
 
-Neon branches let each pull request test schema migrations against a copy of the data without touching production.
+If branch-per-preview is turned on later, each pull request can test schema migrations against a copy of the data without touching production; `scripts/vercel-build.mjs` would then also migrate previews that have their own branch.
 
 **Who runs migrations:** only production builds migrate. `vercel-build` (`scripts/vercel-build.mjs`) runs `drizzle-kit migrate` against `DATABASE_URL_UNPOOLED` (falling back to `DATABASE_URL`; the runtime uses the pooled `DATABASE_URL`) only when `VERCEL_ENV` is `production`, then `next build`. Preview and development builds skip migrations and just run `next build`: until Neon branch-per-preview is enabled, previews share the production database, so a preview must never migrate it. A failed production migration fails the deploy, so production is never left on code that expects a schema it doesn't have. Migrations are therefore written to be safe to run while the previous version is still serving (expand, then contract).
 
