@@ -6,6 +6,7 @@ V1 is a personal sound journal for a single owner, usable from phone and laptop,
 
 ### Capture (web app)
 - **Add an entry from a YouTube link.** The app reads the video ID (and a `t=` start time if the link has one), fetches the title and channel through YouTube's oEmbed endpoint (no API key; works for public and unlisted videos), and shows the video.
+- **Open from a link.** `/capture?url=<encoded YouTube link>` fills the box and runs the same lookup automatically (for an iPhone Share-sheet Shortcut). A bad or non-YouTube link shows the same error as a manual paste. If the session has expired, login returns to the same `/capture?url=…`.
 - **Whole song or a highlight.** Save with no timestamp (whole work), or mark a start (and optional end) using the embedded player's current position — "mark it while it plays." Manual mm:ss editing is available but never required. If a video can't be embedded, the app links out to YouTube at the timestamp and times are typed in.
 - **Note is optional at save time.** Saving with no note puts the highlight in `needs_why`. After Save, the app opens the song's page.
 - **Multiple highlights per entry.** Add another highlight from the song's page, each with its own note.

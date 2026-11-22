@@ -66,6 +66,9 @@ describe("isPublicPath", () => {
 describe("safeNext", () => {
   it("allows only local paths", () => {
     expect(safeNext("/entries?a=1")).toBe("/entries?a=1");
+    // The login redirect carries the capture link through intact.
+    const cap = "/capture?url=" + encodeURIComponent("https://youtu.be/abc?t=75");
+    expect(safeNext(cap)).toBe(cap);
     expect(safeNext("//evil.com")).toBe("/");
     expect(safeNext("https://evil.com")).toBe("/");
     expect(safeNext("/\\evil.com")).toBe("/");
