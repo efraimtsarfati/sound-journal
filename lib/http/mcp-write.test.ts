@@ -118,9 +118,8 @@ describe("server instructions", () => {
     const body = (await res.json()) as { result: { instructions: string } };
     expect(body.result.instructions).toContain("call `list_inbox`");
     expect(body.result.instructions).toContain("Never tag a highlight with no note");
-    // rule 8 names match_entry, which is not registered until M7
-    expect(body.result.instructions).not.toContain("match_entry");
-    expect(body.result.instructions).not.toContain("8. Match entries");
+    // rule 8 is sent because match_entry is registered (M7)
+    expect(body.result.instructions).toContain("8. Match entries");
   });
 });
 
@@ -524,5 +523,40 @@ describe("cross-user isolation", () => {
     expect((tagCount.rows[0] as { n: number }).n).toBe(1);
     const intruderTags = await t.client.query("select count(*)::int as n from tags where name = 'intruder'");
     expect((intruderTags.rows[0] as { n: number }).n).toBe(0);
+  });
+});
+
+describe("match_entry", () => {
+  const REC = "11111111-1111-4111-8111-111111111111";
+  const mbFetch = async (url: string) => {
+    const body = url.includes("/recording/")
+      ? { id: REC, title: "Made Up Song", "first-release-date": "1986-03-01", "artist-credit": [{ name: "Made Up Band", artist: { id: "22222222-2222-4222-8222-222222222222", name: "Made Up Band" } }], releases: [] }
+      : { genres: [{ name: "post-punk", count: 3 }] };
+    return { ok: true, status: 200, json: async () => body };
+  };
+  const mb = { fetch: mbFetch, contact: "x@example.test", minIntervalMs: 0 };
+  const callMb = async (args: Record<string, unknown>) => {
+    const res = await handleMcp(rpc("tools/call", { name: "match_entry", arguments: args }), db, ENV, {}, mb);
+    return ((await res.json()) as { result: { content: { text: string }[]; structuredContent?: Record<string, any>; isError?: boolean } }).result;
+  };
+
+  it("matches an entry at high confidence and stores a candidate at low", async () => {
+    const lo = await insertEntry(t.db, { title: "Raw Title" });
+    const r1 = await callMb({ entry_id: lo.id, mbid: REC, confidence: "low" });
+    expect(r1.isError).toBeFalsy();
+    expect(r1.structuredContent!.outcome).toBe("candidate");
+    expect(r1.structuredContent!.entry).toMatchObject({ matchStatus: "unmatched", mbidCandidate: REC, title: "Raw Title" });
+
+    const hi = await insertEntry(t.db, { title: "Raw Title 2" });
+    const r2 = await callMb({ entry_id: hi.id, mbid: REC, confidence: "high" });
+    expect(r2.structuredContent!.entry).toMatchObject({ matchStatus: "matched", mbid: REC, title: "Made Up Song", originalReleaseYear: 1986 });
+  });
+
+  it("refuses another user's entry and a malformed id", async () => {
+    const r = await callMb({ entry_id: otherEntryId, mbid: REC, confidence: "high" });
+    expect(r.isError).toBe(true);
+    expect(r.content[0].text).toMatch(/not found/i);
+    const bad = await callMb({ entry_id: otherEntryId, mbid: "nope", confidence: "high" });
+    expect(bad.isError).toBe(true);
   });
 });

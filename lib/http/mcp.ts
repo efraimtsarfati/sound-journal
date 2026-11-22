@@ -33,6 +33,7 @@ export async function handleMcp(
   db: Db,
   env: McpEnv,
   deps: Parameters<typeof createMcpServer>[2] = {},
+  mb: Parameters<typeof createMcpServer>[5] = {},
 ): Promise<Response> {
   const origin = appOrigin(env.APP_ORIGIN);
   if (!origin) {
@@ -50,7 +51,7 @@ export async function handleMcp(
     });
   }
 
-  const server = createMcpServer(db, who.userId, deps, who.clientName);
+  const server = createMcpServer(db, who.userId, deps, who.clientName, undefined, mb);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,

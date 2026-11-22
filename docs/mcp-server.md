@@ -30,7 +30,7 @@ All tools call `lib/core` functions only. Read tools are annotated `readOnlyHint
 | `add_highlight` | `entry_id`, `start_sec?`, `end_sec?`, `note?` | Adds a highlight |
 | `update_highlight` | `highlight_id`, `note?`, `start_sec?`, `end_sec?` (omitted = unchanged, `null` clears; at least one is required) | Edits; a times-only change keeps the status, otherwise status changes follow the [transition rules](data-model.md#highlight-workflow-highlightsstatus) |
 | `set_highlight_tags` | `highlight_id`, `tags: [{name, axis}]` | Sets the highlight's full tag list **as a diff**: tags already on it are kept with their original `added_at`; new ones are attached with `added_at = now`; missing ones are detached. Unknown names are created as `proposed` (with `agent_name` set to the connected app's name); merged names resolve to the surviving tag; workflow-status words (`needs_why`, `needs why`, `needs-tags`, `tagged`) are refused as tag names. Status → `tagged`, or `needs_tags` if the list is empty. Refused if the highlight is `needs_why` |
-| `match_entry` (**built in M7**, with the MusicBrainz adapter; not in the server before then) | `entry_id`, `mbid`, `confidence: "high" \| "low"` | Stores the MusicBrainz match; `high` → `matched`, `low` → stays `unmatched` for the user to confirm. Fetches artist genres |
+| `match_entry` (M7) | `entry_id`, `mbid` (a MusicBrainz recording UUID), `confidence: "high" \| "low"` | Stores the MusicBrainz match; `high` → `matched`: the entry takes MusicBrainz's title, album (when it has one), year and artists, and artist genres are fetched; `low` → the MBID is stored as `mbid_candidate`, the entry stays `unmatched`, and the user confirms it in the app. The MBID is always looked up on MusicBrainz first, so an invented or unknown ID is refused and nothing changes. An entry the owner already **confirmed** is never overwritten: `match_entry` of any confidence is refused with "ask the owner to reject the match in the app first" (the song page's "Reject match" button undoes a match). A `low` call on an automatically matched entry is refused; a `high` call re-matches it. Needs "Allow changes" |
 
 ### Delete (needs `allowChanges` and `allowDeletes`)
 
@@ -51,7 +51,7 @@ The switch rules above live in `assertConnectorAllows` (`lib/core/connector.ts`)
 
 ## Server instructions (sent to every connected agent)
 
-The server's `instructions` field is the house rules, sent in the `initialize` result (the text lives in `BASE_INSTRUCTIONS` and `MATCH_ENTRY_INSTRUCTION` in `lib/mcp/server.ts` and must match this list). Rule 8 refers to `match_entry`, so it is sent only when that tool is registered (M7 onward); until then the list ends at rule 7 (`serverInstructions()` in `lib/mcp/server.ts`).
+The server's `instructions` field is the house rules, sent in the `initialize` result (the text lives in `BASE_INSTRUCTIONS` and `MATCH_ENTRY_INSTRUCTION` in `lib/mcp/server.ts` and must match this list). Rule 8 refers to `match_entry`, so it is sent only when that tool is registered (`REGISTERS_MATCH_ENTRY` in `lib/mcp/server.ts`, true since M7; `serverInstructions()` omits it otherwise).
 
 > You are connected to the user's Sound Journal: a library of moments in music and why they matter to the user.
 > 1. At the start of any Sound Journal task, call `list_inbox` and mention anything waiting.
