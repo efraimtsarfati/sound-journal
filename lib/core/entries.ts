@@ -144,7 +144,7 @@ export async function softDeleteEntry(db: Db, userId: string, entryId: string): 
     if (!row) throw new CoreError("not_found", "Entry not found.");
     await tx
       .update(highlights)
-      .set({ deletedAt: now })
+      .set({ deletedAt: now, searchDirty: true })
       .where(and(eq(highlights.entryId, entryId), eq(highlights.userId, userId), isNull(highlights.deletedAt)));
   });
 }

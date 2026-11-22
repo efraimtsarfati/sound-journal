@@ -28,6 +28,15 @@ export default async function SettingsPage() {
         </h2>
         <ConnectorSwitches initial={switches} />
       </section>
+      <section aria-labelledby="search-h" className="mb-8">
+        <h2 id="search-h" className="mb-2 text-lg font-semibold">
+          Search index
+        </h2>
+        <p className="mb-2 text-sm text-neutral-600">
+          Meaning search reads from a copy of your notes. It updates after every change and once a day; use this if results look out of date.
+        </p>
+        <ActionButton url="/api/search/resync" label="Re-sync search" />
+      </section>
       <section aria-labelledby="apps-h">
         <h2 id="apps-h" className="mb-2 text-lg font-semibold">
           Connected apps

@@ -121,7 +121,7 @@ export async function softDeleteHighlight(db: Db, userId: string, highlightId: s
     }
     await tx
       .update(highlights)
-      .set({ deletedAt: new Date() })
+      .set({ deletedAt: new Date(), searchDirty: true })
       .where(and(eq(highlights.id, highlightId), eq(highlights.userId, userId)));
   });
 }

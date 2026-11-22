@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { OWNER_USER_ID, approveTag, mergeTags, rejectTag, renameTag } from "@/lib/core";
 import { getDb } from "@/lib/db";
+import { syncSearchAfterResponse } from "@/lib/http/search-after";
 import { coreErrorResponse } from "@/lib/http/core-error";
 
 const Body = z.discriminatedUnion("action", [
@@ -22,6 +23,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     else if (b.action === "reject") await rejectTag(db, OWNER_USER_ID, id.data);
     else if (b.action === "rename") await renameTag(db, OWNER_USER_ID, id.data, b.name);
     else await mergeTags(db, OWNER_USER_ID, [id.data], b.targetId);
+    syncSearchAfterResponse();
     return Response.json({ ok: true });
   } catch (e) {
     return coreErrorResponse(e);

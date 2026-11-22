@@ -16,3 +16,4 @@ export * from "./agent-write";
 export { DEFAULT_TIME_ZONE, formatInZone, isValidTimeZone, startOfDayInZone } from "./dates";
 export * from "./rate-limit";
 export * from "./connector";
+export * from "./search";

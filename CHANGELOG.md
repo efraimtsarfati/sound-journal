@@ -6,7 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-11-22
+
 ### Added
+- Meaning search: describe a sound or feeling and find the clips whose notes, titles, artists or tags match it, even in different words. On the entry list tick "Search by meaning"; connected agents get the same through `search_highlights` (each match has a similarity score).
+- Settings has a "Re-sync search" button, and the search index also re-syncs itself every day. Deleting a song or clip removes it from search straight away.
 - Song page: one player at the top, a card per clip (tap its time to play from there), Edit for a clip's why and times (with Mark from the player), and Add a clip. Saving a capture now opens the song's page.
 - Entry list: search by title, artist or album, and filter by artist, tag, axis and status.
 - Settings page with the connector switches (Connector, Allow changes, Allow deletes) and the list of connected apps, each with a Revoke button.
