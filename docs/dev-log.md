@@ -9,7 +9,7 @@ Newest entry first. Written by the `wrap-up` skill at the end of every build ses
 **Gotchas:**
 - A stray `cat > /dev/null` in a Bash call blocks on stdin until the 120 s timeout; don't pipe stdin you don't have.
 **Doc drift:** architecture (Metadata matching "as built"), mcp-server (`match_entry`, rule 8), changelog, build-plan.
-**Follow-ups:** never tried against the real MusicBrainz API or an MCP client; no server-side recording search (the agent supplies the MBID, per the docs); the 1 s spacing is per server instance only; an artist with no genres is re-fetched on every match; the confirm panel links to MusicBrainz rather than showing the candidate's title (avoids a network call on page render); a re-match with `high` overwrites a previously confirmed match without asking.
+**Follow-ups:** never tried against the real MusicBrainz API or an MCP client; no server-side recording search (the agent supplies the MBID, per the docs); the 1 s spacing is per server instance only; an artist with no genres is re-fetched on every match; the confirm panel links to MusicBrainz rather than showing the candidate's title (avoids a network call on page render); owner ruling applied: a confirmed match is never overwritten by `match_entry` (reject it in the app first); the Confirm panel stays link-only because candidate title/artist/year are not stored (would need a migration).
 
 ---
 ## 2026-11-21 — M6b — Vector index, search sync and meaning search (PR #27)

@@ -26,6 +26,9 @@ export type MatchResult = {
   recording: MbRecording;
 };
 
+const CONFIRMED_MESSAGE =
+  "The owner already confirmed this entry's MusicBrainz match, so it can't be changed. Ask the owner to reject the match in the app first (the song page has a button), then try again.";
+
 function mbError(e: unknown): never {
   if (e instanceof MusicBrainzError) {
     if (e.code === "not_found") throw new CoreError("not_found", "MusicBrainz has no recording with that ID. Nothing was changed.");
@@ -107,6 +110,8 @@ async function applyRecording(
       .where(and(eq(entries.id, entryId), eq(entries.userId, userId), isNull(entries.deletedAt)))
       .for("update");
     if (!locked) throw new CoreError("not_found", "Entry not found.");
+    // The owner may have confirmed it while MusicBrainz was being asked; only a confirm may write then.
+    if (locked.matchStatus === "confirmed" && status !== "confirmed") throw new CoreError("invalid_state", CONFIRMED_MESSAGE);
     const [entry] = await tx
       .update(entries)
       .set({
@@ -171,6 +176,7 @@ export async function matchEntry(
   deps: MusicBrainzDeps = {},
 ): Promise<MatchResult> {
   const before = await loadLiveEntry(db, userId, input.entryId);
+  if (before.matchStatus === "confirmed") throw new CoreError("invalid_state", CONFIRMED_MESSAGE);
   if (input.confidence === "low" && before.matchStatus !== "unmatched") {
     throw new CoreError("invalid_state", "This entry is already matched; a low-confidence candidate can't replace it.");
   }
@@ -209,11 +215,15 @@ export async function confirmMatch(db: Db, userId: string, entryId: string, deps
   return { entry, outcome: "confirmed", recording };
 }
 
-/** The user says the candidate is wrong: it is dropped and the entry stays unmatched. */
+/**
+ * The user says the match is wrong: a waiting candidate is dropped; a matched or confirmed match is
+ * undone (mbid cleared, status back to unmatched) so an agent may match again. Title and artists keep
+ * their current values; the raw ones are still on the source.
+ */
 export async function rejectMatchCandidate(db: Db, userId: string, entryId: string): Promise<Entry> {
   const [entry] = await db
     .update(entries)
-    .set({ mbidCandidate: null, updatedAt: new Date() })
+    .set({ mbidCandidate: null, mbid: null, matchStatus: "unmatched", updatedAt: new Date() })
     .where(and(eq(entries.id, entryId), eq(entries.userId, userId), isNull(entries.deletedAt)))
     .returning();
   if (!entry) throw new CoreError("not_found", "Entry not found.");

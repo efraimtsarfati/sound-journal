@@ -145,3 +145,19 @@ describe("low confidence, confirm and reject", () => {
     void and;
   });
 });
+
+describe("confirmed matches are protected", () => {
+  it("refuses high and low calls on a confirmed entry until the owner rejects the match", async () => {
+    const e = await seed();
+    await matchEntry(D(), OWNER_USER_ID, { entryId: e.id, mbid: REC, confidence: "low" }, mb);
+    await confirmMatch(D(), OWNER_USER_ID, e.id, mb);
+    for (const confidence of ["high", "low"] as const) {
+      await expect(matchEntry(D(), OWNER_USER_ID, { entryId: e.id, mbid: REC, confidence }, mb)).rejects.toThrow(/reject the match in the app/);
+    }
+    expect(await reload(e.id)).toMatchObject({ matchStatus: "confirmed", mbid: REC });
+    await rejectMatchCandidate(D(), OWNER_USER_ID, e.id);
+    expect(await reload(e.id)).toMatchObject({ matchStatus: "unmatched", mbid: null, mbidCandidate: null });
+    const r = await matchEntry(D(), OWNER_USER_ID, { entryId: e.id, mbid: REC, confidence: "high" }, mb);
+    expect(r.outcome).toBe("matched");
+  });
+});

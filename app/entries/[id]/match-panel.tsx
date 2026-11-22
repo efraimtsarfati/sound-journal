@@ -25,12 +25,15 @@ export function MatchPanel({ entry }: { entry: Entry }) {
   }
   if (entry.mbid && entry.matchStatus !== "unmatched") {
     return (
-      <p className="mt-1 text-sm text-neutral-600">
-        {entry.matchStatus === "confirmed" ? "Match confirmed" : "Matched"} on{" "}
-        <a href={mbUrl(entry.mbid)} target="_blank" rel="noreferrer" className="underline">
-          MusicBrainz
-        </a>
-      </p>
+      <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-neutral-600">
+        <span>
+          {entry.matchStatus === "confirmed" ? "Match confirmed" : "Matched"} on{" "}
+          <a href={mbUrl(entry.mbid)} target="_blank" rel="noreferrer" className="underline">
+            MusicBrainz
+          </a>
+        </span>
+        <ActionButton url={`/api/entries/${entry.id}/match/reject`} label="Reject match" confirmText="Undo this MusicBrainz match? The title and artists stay as they are." />
+      </div>
     );
   }
   return null;
