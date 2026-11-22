@@ -3,7 +3,7 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
-## 2026-11-21 — M7 — MusicBrainz adapter, match_entry and confirm-match UI (PR #PRNUM)
+## 2026-11-21 — M7 — MusicBrainz adapter, match_entry and confirm-match UI (PR #28)
 **State:** done, no migration (schema already had `mbid`, `mbid_candidate`, `artists.mbid`, `artist_genres`). `lib/metadata/musicbrainz.ts` (recording and artist-genre lookups, injectable fetch, User-Agent from `MUSICBRAINZ_CONTACT`, 1.1 s spacing); `lib/core/match.ts` (`matchEntry`, `confirmMatch`, `rejectMatchCandidate`); MCP `match_entry` registered and `REGISTERS_MATCH_ENTRY` flipped to true (rule 8 now sent); `lib/http/match-routes.ts` + `/api/entries/[id]/match/{confirm,reject}`; song page `MatchPanel` and a "Confirm match?" marker on the list. 395 tests (fixtures only, no live network); typecheck, lint, test, build pass. No release (M8 still to come).
 **Next:** M8 (PWA install, mobile pass, capture speed check).
 **Gotchas:**
