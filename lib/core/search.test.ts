@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { highlights, type Db } from "../db";
+import { highlights, users, type Db } from "../db";
 import { createTestDb, insertUser } from "../db/test-utils";
 import { FakeVectorIndex } from "../search";
 import { searchHighlights } from "./agent-read";
@@ -9,7 +9,7 @@ import { addEntry, softDeleteEntry } from "./entries";
 import { addHighlight, softDeleteHighlight } from "./highlights";
 import { OWNER_USER_ID } from "./owner";
 import { restoreEntry } from "./restore";
-import { listEntriesByMeaning, resyncSearch, syncDirtyHighlights, syncSearchQuietly, vectorText } from "./search";
+import { listEntriesByMeaning, resyncAllUsers, resyncSearch, syncDirtyHighlights, syncSearchQuietly, vectorText } from "./search";
 import { setHighlightTags } from "./tags";
 
 let t: Awaited<ReturnType<typeof createTestDb>>;
@@ -138,6 +138,53 @@ describe("resyncSearch", () => {
     expect(index.docs.has(r.highlight.id)).toBe(true);
   });
 
+  it("cron path: a restore between the stray listing and the removal is not undone", async () => {
+    const t2 = await createTestDb();
+    try {
+      const db2 = t2.db as unknown as Db;
+      const u = await insertUser(t2.db);
+      const r = await addEntry(db2, u.id, {
+        title: "Cron Made Up",
+        source: { type: "youtube", externalId: "cron1", url: "https://youtu.be/x" },
+        highlight: { note: "cron race" },
+      });
+      if (r.duplicate) throw new Error("dup");
+      const index = new FakeVectorIndex();
+      await resyncAllUsers(db2, index);
+      await softDeleteEntry(db2, u.id, r.entry.id);
+      await resyncAllUsers(db2, index); // vector removed, nothing dirty
+      index.docs.set(r.highlight.id, { id: r.highlight.id, text: "stale", metadata: meta(u.id) });
+      // Users are processed in id order; each runs one (empty) sync transaction, and the target's
+      // sweep is the next one. Restore the entry right before that sweep transaction starts.
+      const before = (await t2.db.select({ id: users.id }).from(users)).filter((x) => x.id < u.id).length;
+      const target = before + 2;
+      let opened = 0;
+      const racing = new Proxy(db2, {
+        get(tgt, prop, receiver) {
+          if (prop !== "transaction") return Reflect.get(tgt, prop, receiver);
+          return async (...args: Parameters<Db["transaction"]>) => {
+            if (++opened === target) await restoreEntry(db2, u.id, r.entry.id);
+            return db2.transaction(...args);
+          };
+        },
+      });
+      const out = await resyncAllUsers(racing, index);
+      expect(opened).toBeGreaterThanOrEqual(target);
+      expect(out.orphans).toBe(0);
+      expect(index.docs.has(r.highlight.id)).toBe(true);
+    } finally {
+      await t2.close();
+    }
+  });
+
+  it("removes vectors whose owner is unknown", async () => {
+    const index = new FakeVectorIndex();
+    index.docs.set(GHOST, { id: GHOST, text: "x", metadata: meta("no-such-user") });
+    const out = await resyncAllUsers(db, index);
+    expect(out.orphans).toBeGreaterThanOrEqual(1);
+    expect(index.docs.has(GHOST)).toBe(false);
+  });
+
   it("leaves another user's vectors alone when scoped", async () => {
     const index = new FakeVectorIndex();
     index.docs.set(GHOST, { id: GHOST, text: "x", metadata: meta("someone-else") });
@@ -232,7 +279,7 @@ describe("meaning search", () => {
     const other = await insertUser(t.db);
     const theirs = await save("secret zebra sound", "Theirs", other.id);
     const index = new FakeVectorIndex();
-    await resyncSearch(db, index);
+    await resyncAllUsers(db, index);
     expect(await searchHighlights(db, OWNER_USER_ID, { query: "zebra" }, index)).toEqual([]);
     const own = await searchHighlights(db, other.id, { query: "zebra" }, index);
     expect(own.map((h) => h.id)).toEqual([theirs.highlight.id]);

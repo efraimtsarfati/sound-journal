@@ -144,9 +144,11 @@ export type ResyncResult = SyncResult & { orphans: number };
 
 /**
  * Upserts every dirty highlight, then removes vectors whose highlight no longer exists live.
- * One user's, or everyone's when `userId` is omitted. The index can always be rebuilt from Postgres.
+ * One user's only: every lock it takes is that user's advisory lock, the same one that user's syncs
+ * syncs take, so the sweep excludes them. `resyncAllUsers` runs this per user.
+ * The index can always be rebuilt from Postgres.
  */
-export async function resyncSearch(db: Db, index: VectorIndex, userId?: string): Promise<ResyncResult> {
+export async function resyncSearch(db: Db, index: VectorIndex, userId: string): Promise<ResyncResult> {
   let upserted = 0;
   let removed = 0;
   // List the index BEFORE reading live rows: a highlight synced after this point is not in `listed`,
@@ -190,7 +192,7 @@ export async function resyncSearch(db: Db, index: VectorIndex, userId?: string):
     // take, re-check which are live now and remove only the rest. A restore that lands after this
     // check flags the row dirty, so the next sync re-adds it.
     orphans = await db.transaction(async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId ?? "*"}))`);
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
       const nowLive = new Set<string>();
       for (let i = 0; i < stray.length; i += 500) {
         const rows = await tx
@@ -217,9 +219,34 @@ export async function resyncSearch(db: Db, index: VectorIndex, userId?: string):
 
 /** Re-sync for every user, for the daily cron. */
 export async function resyncAllUsers(db: Db, index: VectorIndex): Promise<ResyncResult & { users: number }> {
-  const all = await db.select({ id: users.id }).from(users);
-  const r = await resyncSearch(db, index);
-  return { ...r, users: all.length };
+  const all = await db.select({ id: users.id }).from(users).orderBy(asc(users.id));
+  const total: ResyncResult = { upserted: 0, removed: 0, orphans: 0 };
+  // Per user, so every sweep takes that user's own advisory lock (the one their syncs take).
+  for (const u of all) {
+    const r = await resyncSearch(db, index, u.id);
+    total.upserted += r.upserted;
+    total.removed += r.removed;
+    total.orphans += r.orphans;
+  }
+  // Vectors owned by nobody we know (no owner metadata, or a user row that no longer exists). A
+  // highlight with a live row belongs to a listed user, so these are removed unless still live.
+  const known = new Set(all.map((u) => u.id));
+  const unowned = (await index.listAll()).filter((v) => !v.userId || !known.has(v.userId)).map((v) => v.id);
+  if (unowned.length) {
+    const liveIds = new Set<string>();
+    for (let i = 0; i < unowned.length; i += 500) {
+      const rows = await db
+        .select({ id: highlights.id })
+        .from(highlights)
+        .innerJoin(entries, and(eq(entries.id, highlights.entryId), eq(entries.userId, highlights.userId)))
+        .where(and(inArray(highlights.id, unowned.slice(i, i + 500)), isNull(highlights.deletedAt), isNull(entries.deletedAt)));
+      for (const r of rows) liveIds.add(r.id);
+    }
+    const toRemove = unowned.filter((id) => !liveIds.has(id));
+    if (toRemove.length) await index.remove(toRemove);
+    total.orphans += toRemove.length;
+  }
+  return { ...total, users: all.length };
 }
 
 /** Highlight ids for a text query, best match first, scoped to the user. Throws when the index fails. */
