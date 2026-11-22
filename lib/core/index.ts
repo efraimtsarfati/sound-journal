@@ -17,3 +17,4 @@ export { DEFAULT_TIME_ZONE, formatInZone, isValidTimeZone, startOfDayInZone } fr
 export * from "./rate-limit";
 export * from "./connector";
 export * from "./search";
+export * from "./match";

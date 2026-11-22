@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ActionButton } from "@/app/_components/action-button";
 import { Nav } from "@/app/_components/nav";
+import { MatchPanel } from "./match-panel";
 import { SongClips } from "./song-clips";
 import { OWNER_USER_ID, getEntry } from "@/lib/core";
 import { getDb } from "@/lib/db";
@@ -29,6 +30,7 @@ export default async function EntryPage({
       <Nav />
       <h1 className="text-xl font-semibold">{entry.title}</h1>
       {artists.length > 0 && <p className="text-neutral-600">{artists.join(", ")}</p>}
+      <MatchPanel entry={entry} />
       <SongClips entryId={entry.id} videoId={videoId} clips={highlights.map((h) => ({ id: h.id, startSec: h.startSec, endSec: h.endSec, note: h.note, status: h.status, tags: h.tags.map((t) => ({ id: t.id, name: t.name, axis: t.axis, state: t.state })) }))} editId={editId} />
       <div className="mt-6 flex flex-wrap gap-3">
         <ActionButton

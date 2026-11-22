@@ -19,12 +19,14 @@ import {
   listEntriesForAgent,
   listInbox,
   searchHighlights,
+  matchEntry,
   syncSearchQuietly,
   type AgentEntry,
   type AgentHighlight,
 } from "../core";
 import type { Db } from "../db";
 import { getVectorIndex, type VectorIndex } from "../search";
+import type { MusicBrainzDeps } from "../metadata/musicbrainz";
 import type { fetchOEmbed } from "../sources/youtube";
 
 export const MCP_SERVER_NAME = "sound-journal";
@@ -99,8 +101,8 @@ const BASE_INSTRUCTIONS = [
 const MATCH_ENTRY_INSTRUCTION =
   '8. Match entries to MusicBrainz only when confident; otherwise use `confidence: "low"` and let the user confirm.';
 
-/** Flip to true in M7, in the same change that registers `match_entry`. */
-const REGISTERS_MATCH_ENTRY = false;
+/** True since M7: `match_entry` is registered below, and instruction 8 refers to it. */
+const REGISTERS_MATCH_ENTRY = true;
 
 /** Builds a stateless MCP server for one verified user. Every tool re-checks the connector switches. */
 export function createMcpServer(
@@ -111,6 +113,8 @@ export function createMcpServer(
   clientName: string | null = null,
   /** The vector index (null: not configured). Searches use it, and writes push dirty highlights to it. */
   index: VectorIndex | null = getVectorIndex(),
+  /** MusicBrainz lookups (fetch, contact); tests inject a fake fetch. */
+  mb: MusicBrainzDeps = {},
 ): McpServer {
   const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version }, { instructions: serverInstructions({ matchEntry: REGISTERS_MATCH_ENTRY }) });
 
@@ -422,6 +426,31 @@ export function createMcpServer(
           );
         }
         return ok(`Restored entry "${r.entry.title}" (${r.entry.id}).`, { restored: { entry: r.entry } });
+      }),
+  );
+
+  server.registerTool(
+    "match_entry",
+    {
+      title: "Match entry to MusicBrainz",
+      description:
+        'Store the MusicBrainz recording for a saved entry. Give the recording\'s MBID (a UUID you found on musicbrainz.org; it is checked against MusicBrainz, so an invented one is refused). confidence "high": the entry takes MusicBrainz\'s title, album, year and artists, artist genres are fetched, and it becomes matched. confidence "low": the MBID is only stored as a candidate and the user confirms it in the app; nothing else changes. Use "low" unless you are sure it is the same recording.',
+      inputSchema: {
+        entry_id: z.string().uuid(),
+        mbid: z.string().uuid().describe("MusicBrainz recording ID"),
+        confidence: z.enum(["high", "low"]),
+      },
+      annotations: idempotentWrite,
+    },
+    ({ entry_id, mbid, confidence }) =>
+      guarded("changes", async () => {
+        const r = await matchEntry(db, userId, { entryId: entry_id, mbid, confidence }, mb);
+        const by = r.recording.artists.map((a) => a.name).join(", ");
+        const text =
+          r.outcome === "candidate"
+            ? `Stored ${by ? `${by} - ` : ""}${r.recording.title} as a candidate for entry ${entry_id}; the user can confirm it in the app.`
+            : `Matched entry ${entry_id} to ${by ? `${by} - ` : ""}${r.recording.title}${r.recording.year ? ` (${r.recording.year})` : ""}.`;
+        return ok(text, { outcome: r.outcome, entry: r.entry, recording: r.recording });
       }),
   );
 

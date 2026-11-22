@@ -110,6 +110,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               <Link href={entryHref(entry.id, highlights, status)} className="block min-h-11 p-3">
                 <span className="block font-medium">{entry.title}</span>
                 {artists.length > 0 && <span className="block text-sm text-neutral-600">{artists.join(", ")}</span>}
+                {entry.mbidCandidate && entry.matchStatus === "unmatched" && <span className="block text-sm text-amber-800">Confirm match?</span>}
                 <ul className="mt-2 flex flex-col gap-2">
                   {highlights.map((h) => (
                     <li key={h.id} className="text-sm">

@@ -3,6 +3,15 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M7 — MusicBrainz adapter, match_entry and confirm-match UI (PR #PRNUM)
+**State:** done, no migration (schema already had `mbid`, `mbid_candidate`, `artists.mbid`, `artist_genres`). `lib/metadata/musicbrainz.ts` (recording and artist-genre lookups, injectable fetch, User-Agent from `MUSICBRAINZ_CONTACT`, 1.1 s spacing); `lib/core/match.ts` (`matchEntry`, `confirmMatch`, `rejectMatchCandidate`); MCP `match_entry` registered and `REGISTERS_MATCH_ENTRY` flipped to true (rule 8 now sent); `lib/http/match-routes.ts` + `/api/entries/[id]/match/{confirm,reject}`; song page `MatchPanel` and a "Confirm match?" marker on the list. 395 tests (fixtures only, no live network); typecheck, lint, test, build pass. No release (M8 still to come).
+**Next:** M8 (PWA install, mobile pass, capture speed check).
+**Gotchas:**
+- A stray `cat > /dev/null` in a Bash call blocks on stdin until the 120 s timeout; don't pipe stdin you don't have.
+**Doc drift:** architecture (Metadata matching "as built"), mcp-server (`match_entry`, rule 8), changelog, build-plan.
+**Follow-ups:** never tried against the real MusicBrainz API or an MCP client; no server-side recording search (the agent supplies the MBID, per the docs); the 1 s spacing is per server instance only; an artist with no genres is re-fetched on every match; the confirm panel links to MusicBrainz rather than showing the candidate's title (avoids a network call on page render); a re-match with `high` overwrites a previously confirmed match without asking.
+
+---
 ## 2026-11-21 — M6b — Vector index, search sync and meaning search (PR #27)
 **State:** done, no migration (`search_dirty` already existed). `lib/search` (Upstash adapter + `FakeVectorIndex` for tests); `lib/core/search.ts` (`syncDirtyHighlights`, `syncSearchQuietly`, `resyncSearch`, `listEntriesByMeaning`); soft deletes now set `search_dirty` so one sync path upserts live rows and removes dead ones; sync runs after every session write route (`after()`) and every MCP write tool; `/api/cron/resync` (08:30 UTC) and Settings "Re-sync search"; the purge cron deletes vectors of purged highlights; `search_highlights` and the entry list ("Search by meaning" checkbox) use the index and fall back to a note/title substring match when it is unset or errors. 369 tests; typecheck, lint, test, build pass. Release 0.6.0 cut (M6 complete).
 **Next:** M7. After merge, tag and publish v0.6.0.

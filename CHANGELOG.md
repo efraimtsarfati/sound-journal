@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- MusicBrainz matching: connected agents can match a saved song to its MusicBrainz recording with `match_entry`. A confident match tidies the title, album, year and artists and fetches the artists' genres. An unsure match shows "Confirm match?" on the song page and in the list, where you can accept or dismiss it.
+
+### Changed
+- Agents are now told rule 8 (match to MusicBrainz only when confident), since `match_entry` exists.
+
 ## [0.6.0] — 2026-11-21
 
 ### Added

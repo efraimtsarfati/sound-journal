@@ -148,7 +148,7 @@ describe("auth and transport", () => {
     expect(names).toEqual(
       [
         "add_entry", "add_highlight", "delete_entry", "delete_highlight", "get_entry", "get_taxonomy",
-        "list_entries", "list_inbox", "restore_deleted", "search_highlights", "set_highlight_tags", "update_highlight",
+        "list_entries", "list_inbox", "match_entry", "restore_deleted", "search_highlights", "set_highlight_tags", "update_highlight",
       ],
     );
     const readOnly = body.result.tools.filter((x) => x.annotations.readOnlyHint).map((x) => x.name).sort();

@@ -1,0 +1,8 @@
+{
+  "id": "22222222-2222-4222-8222-222222222222",
+  "name": "Made Up Band",
+  "genres": [
+    { "name": "Post-Punk", "count": 12, "id": "a" },
+    { "name": "new wave", "count": 4, "id": "b" }
+  ]
+}
