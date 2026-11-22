@@ -6,7 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-11-22
+
 ### Added
+- Version 1.0: all eight acceptance criteria in `docs/spec-v1.md` pass on a phone.
 - Capture opens from a link: `/capture?url=<YouTube link>` loads the player automatically, so a Share-sheet Shortcut can send a video straight in.
 
 ### Fixed
