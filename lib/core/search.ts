@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import {
   artists,
   entries,
@@ -19,6 +19,8 @@ export function vectorText(title: string, artistNames: string[], note: string | 
 }
 
 const BATCH = 200;
+/** How many vector matches are fetched before the other filters narrow them. */
+export const MEANING_TOP_K = 100;
 
 export type SyncResult = { upserted: number; removed: number };
 
@@ -33,14 +35,34 @@ export async function syncDirtyHighlights(
   userId?: string,
   limit = BATCH,
 ): Promise<SyncResult> {
+  // One transaction: an advisory lock serializes a user's syncs, the claim (flag cleared) holds the
+  // row locks until commit, and any failure rolls the flag back to true. An edit that lands after
+  // the claim waits for the commit, then sets the flag again, so it is never lost.
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId ?? "*"}))`);
+    const dirtyWhere = userId ? and(eq(highlights.searchDirty, true), eq(highlights.userId, userId)) : eq(highlights.searchDirty, true);
+    const claimed = await tx
+      .update(highlights)
+      .set({ searchDirty: false })
+      .where(
+        and(
+          dirtyWhere,
+          inArray(highlights.id, tx.select({ id: highlights.id }).from(highlights).where(dirtyWhere).orderBy(asc(highlights.id)).limit(limit)),
+        ),
+      )
+      .returning({ id: highlights.id });
+    if (claimed.length === 0) return { upserted: 0, removed: 0 };
+    return pushClaimed(tx, index, claimed.map((c) => c.id));
+  });
+}
+
+async function pushClaimed(db: DbOrTx, index: VectorIndex, ids: string[]): Promise<SyncResult> {
   const rows = await db
     .select({ h: highlights, e: entries })
     .from(highlights)
     .innerJoin(entries, and(eq(entries.id, highlights.entryId), eq(entries.userId, highlights.userId)))
-    .where(userId ? and(eq(highlights.searchDirty, true), eq(highlights.userId, userId)) : eq(highlights.searchDirty, true))
-    .orderBy(asc(highlights.id))
-    .limit(limit);
-  if (rows.length === 0) return { upserted: 0, removed: 0 };
+    .where(inArray(highlights.id, ids))
+    .orderBy(asc(highlights.id));
 
   const dead = rows.filter((r) => r.h.deletedAt || r.e.deletedAt).map((r) => r.h.id);
   const live = rows.filter((r) => !r.h.deletedAt && !r.e.deletedAt);
@@ -81,12 +103,6 @@ export async function syncDirtyHighlights(
 
   if (dead.length) await index.remove(dead);
   if (docs.length) await index.upsert(docs);
-  // Not guarded against an edit that lands between the read and this write; the daily re-sync
-  // cannot see that either, so a highlight edited in that instant is fixed by its next edit.
-  await db
-    .update(highlights)
-    .set({ searchDirty: false })
-    .where(inArray(highlights.id, rows.map((r) => r.h.id)));
   return { upserted: docs.length, removed: dead.length };
 }
 
@@ -119,12 +135,9 @@ export type ResyncResult = SyncResult & { orphans: number };
 export async function resyncSearch(db: Db, index: VectorIndex, userId?: string): Promise<ResyncResult> {
   let upserted = 0;
   let removed = 0;
-  for (let i = 0; i < 1000; i++) {
-    const r = await syncDirtyHighlights(db, index, userId);
-    upserted += r.upserted;
-    removed += r.removed;
-    if (r.upserted + r.removed === 0) break;
-  }
+  // List the index BEFORE reading live rows: a highlight synced after this point is not in `listed`,
+  // so it can never be swept as an orphan.
+  const listed = await index.listAll();
   const liveRows = await db
     .select({ id: highlights.id })
     .from(highlights)
@@ -133,7 +146,22 @@ export async function resyncSearch(db: Db, index: VectorIndex, userId?: string):
       and(isNull(highlights.deletedAt), isNull(entries.deletedAt), userId ? eq(highlights.userId, userId) : undefined),
     );
   const live = new Set(liveRows.map((r) => r.id));
-  const stray = (await index.listAll())
+  // Live highlights the index lacks (lost writes, a wiped index) are marked dirty so the loop pushes them.
+  const inIndex = new Set(listed.map((v) => v.id));
+  const missing = [...live].filter((id) => !inIndex.has(id));
+  for (let i = 0; i < missing.length; i += 500) {
+    await db
+      .update(highlights)
+      .set({ searchDirty: true })
+      .where(inArray(highlights.id, missing.slice(i, i + 500)));
+  }
+  for (let i = 0; i < 1000; i++) {
+    const r = await syncDirtyHighlights(db, index, userId);
+    upserted += r.upserted;
+    removed += r.removed;
+    if (r.upserted + r.removed === 0) break;
+  }
+  const stray = listed
     .filter((v) => (userId ? v.userId === userId : true) && !live.has(v.id))
     .map((v) => v.id);
   if (stray.length) await index.remove(stray);
@@ -163,7 +191,7 @@ export async function listEntriesByMeaning(
   query: string,
   filters: Omit<EntryFilters, "q" | "entryIds"> = {},
 ): Promise<EntryView[]> {
-  const ranked = await meaningRank(index, userId, query);
+  const ranked = await meaningRank(index, userId, query, MEANING_TOP_K);
   if (ranked.length === 0) return [];
   const rows = await db
     .select({ id: highlights.id, entryId: highlights.entryId })

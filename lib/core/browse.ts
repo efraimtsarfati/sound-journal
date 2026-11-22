@@ -94,7 +94,7 @@ export type EntryFilters = {
   entryIds?: string[];
 };
 
-const likeOf = (s: string) => `%${s.replace(/[\%_]/g, "\$&")}%`;
+const likeOf = (s: string) => `%${s.replace(/[\\%_]/g, "\\$&")}%`;
 
 /** Live entries, newest first, with their live highlights, tags and status. Filters combine with AND. */
 export async function listEntries(

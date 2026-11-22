@@ -3,7 +3,7 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
-## 2026-11-22 — M6b — Vector index, search sync and meaning search (PR #27)
+## 2026-11-21 — M6b — Vector index, search sync and meaning search (PR #27)
 **State:** done, no migration (`search_dirty` already existed). `lib/search` (Upstash adapter + `FakeVectorIndex` for tests); `lib/core/search.ts` (`syncDirtyHighlights`, `syncSearchQuietly`, `resyncSearch`, `listEntriesByMeaning`); soft deletes now set `search_dirty` so one sync path upserts live rows and removes dead ones; sync runs after every session write route (`after()`) and every MCP write tool; `/api/cron/resync` (08:30 UTC) and Settings "Re-sync search"; the purge cron deletes vectors of purged highlights; `search_highlights` and the entry list ("Search by meaning" checkbox) use the index and fall back to a note/title substring match when it is unset or errors. 369 tests; typecheck, lint, test, build pass. Release 0.6.0 cut (M6 complete).
 **Next:** M7. After merge, tag and publish v0.6.0.
 **Gotchas:**

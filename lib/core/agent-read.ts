@@ -21,7 +21,7 @@ import { parseYouTubeUrl, YOUTUBE_SOURCE_TYPE } from "../sources/youtube";
 import { getUserTimeZone } from "./connector";
 import type { VectorHit, VectorIndex } from "../search";
 import { startOfDayInZone } from "./dates";
-import { meaningRank } from "./search";
+import { MEANING_TOP_K, meaningRank } from "./search";
 import { findDuplicateEntry } from "./entries";
 import { CoreError } from "./errors";
 import { AXIS_IDS } from "./text";
@@ -42,8 +42,6 @@ export type AgentHighlight = Highlight & {
 };
 
 const MAX_OFFSET = 1_000_000;
-/** How many vector matches are fetched before the other filters narrow them. */
-const MEANING_TOP_K = 100;
 
 const clampLimit = (n: number | undefined, def: number, max: number) =>
   Math.min(Math.max(Math.trunc(n ?? def), 1), max);

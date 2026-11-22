@@ -6,7 +6,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-## [0.6.0] — 2026-11-22
+## [0.6.0] — 2026-11-21
 
 ### Added
 - Meaning search: describe a sound or feeling and find the clips whose notes, titles, artists or tags match it, even in different words. On the entry list tick "Search by meaning"; connected agents get the same through `search_highlights` (each match has a similarity score).

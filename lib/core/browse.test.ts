@@ -180,4 +180,17 @@ describe("listEntries filters", () => {
     expect(await ids({ q: "Filter Song", status: "needs_tags" })).not.toContain(a.entry.id);
     expect(await ids({ q: "100%" })).toEqual([]);
   });
+
+  it("treats %, _ and backslash in the text filter literally", async () => {
+    const lit = await entry("Wild_Card Lit");
+    const alt = await entry("WildXCard Lit");
+    const pct = await entry("Fifty%Off Lit");
+    const bs = await entry("Back\\slash Lit");
+    const ids = async (q: string) => (await listEntries(t.db, OWNER_USER_ID, { q })).map((v) => v.entry.id);
+    expect(await ids("Wild_Card")).toEqual([lit.entry.id]);
+    expect(await ids("WildXCard")).toEqual([alt.entry.id]);
+    expect(await ids("y%O")).toEqual([pct.entry.id]);
+    expect(await ids("k\\s")).toEqual([bs.entry.id]);
+    expect(await ids("%")).toEqual([pct.entry.id]);
+  });
 });

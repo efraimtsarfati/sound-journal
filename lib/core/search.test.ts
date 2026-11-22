@@ -118,6 +118,62 @@ describe("resyncSearch", () => {
   });
 });
 
+describe("sync safety", () => {
+  it("re-flags and pushes a live highlight the index is missing", async () => {
+    const r = await save("lost from the index");
+    const index = new FakeVectorIndex();
+    await syncDirtyHighlights(db, index, OWNER_USER_ID, 1000);
+    expect(await dirty(r.highlight.id)).toBe(false);
+    index.docs.delete(r.highlight.id); // index lost it while Postgres thinks it is clean
+    const out = await resyncSearch(db, index, OWNER_USER_ID);
+    expect(out.upserted).toBeGreaterThanOrEqual(1);
+    expect(index.docs.has(r.highlight.id)).toBe(true);
+  });
+
+  it("does not sweep a highlight synced after the index was listed", async () => {
+    const index = new FakeVectorIndex();
+    let created: string | null = null;
+    const list = index.listAll.bind(index);
+    index.listAll = async () => {
+      const snapshot = await list();
+      // a new highlight is saved and synced by another request right after the listing
+      const r = await save("created mid resync");
+      created = r.highlight.id;
+      await syncDirtyHighlights(db, index, OWNER_USER_ID, 1000);
+      return snapshot;
+    };
+    const out = await resyncSearch(db, index, OWNER_USER_ID);
+    expect(created).not.toBeNull();
+    expect(index.docs.has(created!)).toBe(true);
+    expect(out.orphans).toBe(0);
+  });
+
+  it("overlapping syncs leave the index consistent and the flags clear", async () => {
+    const r = await save("overlap one");
+    const h2 = await addHighlight(db, OWNER_USER_ID, r.entry.id, { note: "overlap two" });
+    const index = new FakeVectorIndex();
+    await Promise.all([
+      syncDirtyHighlights(db, index, OWNER_USER_ID, 1000),
+      syncDirtyHighlights(db, index, OWNER_USER_ID, 1000),
+    ]);
+    expect(index.docs.has(r.highlight.id)).toBe(true);
+    expect(index.docs.has(h2.id)).toBe(true);
+    expect(await dirty(h2.id)).toBe(false);
+  });
+
+  it("a failed push restores the dirty flag for every claimed row", async () => {
+    const r = await save("rollback a");
+    const h2 = await addHighlight(db, OWNER_USER_ID, r.entry.id, { note: "rollback b" });
+    const index = new FakeVectorIndex();
+    index.failUpserts = true;
+    await expect(syncDirtyHighlights(db, index, OWNER_USER_ID, 1000)).rejects.toThrow();
+    expect(await dirty(r.highlight.id)).toBe(true);
+    expect(await dirty(h2.id)).toBe(true);
+    index.failUpserts = false;
+    await syncDirtyHighlights(db, index, OWNER_USER_ID, 1000);
+  });
+});
+
 describe("meaning search", () => {
   it("ranks by the index, returns scores and applies other filters", async () => {
     const a = await save("shimmering reverb pad", "Alpha");
