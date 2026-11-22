@@ -10,7 +10,9 @@ import {
   users,
   type Db,
 } from "../db";
+import type { VectorIndex } from "../search";
 import { ORPHAN_CLIENT_DAYS } from "./oauth";
+import { deleteVectors } from "./search";
 
 export const PURGE_AFTER_DAYS = 30;
 const DAY_MS = 86_400_000;
@@ -18,7 +20,7 @@ const DAY_MS = 86_400_000;
 export type PurgeResult = {
   entries: number;
   highlights: number;
-  /** For the vector index (M6b must delete these ids). */
+  /** The vectors of these highlights are deleted by `runDailyCleanup`. */
   highlightIds: string[];
 };
 
@@ -130,13 +132,23 @@ export type CleanupSummary = {
 };
 
 /** The daily cron: purge every user's old soft-deleted rows, then the expired auth rows. */
-export async function runDailyCleanup(db: Db, now: Date = new Date()): Promise<CleanupSummary> {
+export async function runDailyCleanup(
+  db: Db,
+  now: Date = new Date(),
+  /** Vectors of purged highlights are deleted here; a failure is logged and left to the re-sync sweep. */
+  index: VectorIndex | null = null,
+): Promise<CleanupSummary> {
   const all = await db.select({ id: users.id }).from(users);
   const purged = { users: all.length, entries: 0, highlights: 0 };
   for (const u of all) {
     const r = await purgeDeleted(db, u.id, now);
     purged.entries += r.entries;
     purged.highlights += r.highlights;
+    try {
+      await deleteVectors(index, r.highlightIds);
+    } catch (e) {
+      console.error("Deleting vectors of purged highlights failed; the re-sync sweep will remove them", e);
+    }
   }
   return { purged, auth: await cleanupExpiredAuth(db, now) };
 }

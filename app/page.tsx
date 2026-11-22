@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Nav } from "./_components/nav";
 import { StatusBadge, TagChip } from "./_components/badges";
-import { OWNER_USER_ID, inboxCounts, listEntries } from "@/lib/core";
+import { OWNER_USER_ID, inboxCounts, listEntries, listEntriesByMeaning } from "@/lib/core";
+import { getVectorIndex } from "@/lib/search";
 import { getDb } from "@/lib/db";
 import { formatTime } from "@/lib/capture/time";
 
@@ -24,11 +25,22 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
     : undefined;
   const filters = { q: one("q"), artist: one("artist"), tag: one("tag"), axis: one("axis"), status };
   const filtering = Object.values(filters).some(Boolean);
+  const index = getVectorIndex();
+  const meaning = one("meaning") === "1" && !!filters.q && !!index;
   const db = getDb();
-  const [counts, list] = await Promise.all([
-    inboxCounts(db, OWNER_USER_ID),
-    listEntries(db, OWNER_USER_ID, { limit: 100, ...filters }),
-  ]);
+  const loadList = async (): Promise<{ list: Awaited<ReturnType<typeof listEntries>>; failed: boolean }> => {
+    if (meaning && index) {
+      const { q, ...rest } = filters;
+      try {
+        return { list: await listEntriesByMeaning(db, index, OWNER_USER_ID, q, rest), failed: false };
+      } catch (e) {
+        console.error("Meaning search failed", e);
+        return { list: await listEntries(db, OWNER_USER_ID, { limit: 100, ...filters }), failed: true };
+      }
+    }
+    return { list: await listEntries(db, OWNER_USER_ID, { limit: 100, ...filters }), failed: false };
+  };
+  const [counts, { list, failed: meaningFailed }] = await Promise.all([inboxCounts(db, OWNER_USER_ID), loadList()]);
   const field = "min-h-11 w-full rounded border border-neutral-300 px-2";
   return (
     <main className="mx-auto max-w-xl p-4">
@@ -60,6 +72,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             <option value="tagged">Tagged</option>
           </select>
         </div>
+        {index && (
+          <label className="flex min-h-11 items-center gap-2 text-sm">
+            <input type="checkbox" name="meaning" value="1" defaultChecked={one("meaning") === "1"} className="size-5" />
+            Search by meaning (describe the sound or feeling)
+          </label>
+        )}
         <div className="flex gap-2">
           <button type="submit" className="min-h-11 rounded bg-neutral-900 px-4 text-white">
             Search
@@ -71,6 +89,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           )}
         </div>
       </form>
+      {meaningFailed && (
+        <p role="alert" className="mt-4 text-sm text-red-700">
+          Meaning search is unavailable right now; showing a text match on titles and artists instead.
+        </p>
+      )}
       {list.length === 0 && filtering ? (
         <p className="mt-6 text-neutral-600">No entries match.</p>
       ) : list.length === 0 ? (

@@ -90,9 +90,11 @@ export type EntryFilters = {
   axis?: string;
   /** Highlight workflow status. */
   status?: "needs_why" | "needs_tags" | "tagged";
+  /** Only these entries (used by meaning search, which ranks them itself). */
+  entryIds?: string[];
 };
 
-const likeOf = (s: string) => `%${s.replace(/[\%_]/g, "\$&")}%`;
+const likeOf = (s: string) => `%${s.replace(/[\\%_]/g, "\\$&")}%`;
 
 /** Live entries, newest first, with their live highlights, tags and status. Filters combine with AND. */
 export async function listEntries(
@@ -109,6 +111,7 @@ export async function listEntries(
         .innerJoin(artists, eq(artists.id, entryArtists.artistId))
         .where(and(eq(entryArtists.entryId, entries.id), ilike(artists.name, likeOf(text)))),
     );
+  if (opts.entryIds) conds.push(inArray(entries.id, opts.entryIds));
   const q = opts.q?.trim();
   if (q) {
     conds.push(or(ilike(entries.title, likeOf(q)), ilike(entries.album, likeOf(q)), artistMatch(q))!);

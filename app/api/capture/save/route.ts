@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CoreError, OWNER_USER_ID, addEntry, addHighlight } from "@/lib/core";
 import { getDb } from "@/lib/db";
+import { syncSearchAfterResponse } from "@/lib/http/search-after";
 import { YOUTUBE_SOURCE_TYPE, parseYouTubeUrl, youtubeWatchUrl } from "@/lib/sources/youtube";
 
 const Body = z.object({
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
   try {
     if (b.entryId) {
       const h = await addHighlight(db, OWNER_USER_ID, b.entryId, highlight);
+      syncSearchAfterResponse();
       return Response.json({ ok: true, entryId: h.entryId, highlightId: h.id, status: h.status });
     }
     if (!parseYouTubeUrl(youtubeWatchUrl(b.videoId))) return Response.json({ error: "invalid_input" }, { status: 400 });
@@ -44,6 +46,7 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
+    syncSearchAfterResponse();
     return Response.json({
       ok: true,
       entryId: result.entry.id,

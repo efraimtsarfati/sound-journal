@@ -1,6 +1,6 @@
 {
   "name": "sound-journal",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@neondatabase/serverless": "^1.2.1",
+    "@upstash/vector": "^1.2.4",
     "drizzle-orm": "^0.45.4",
     "next": "^16.4.6",
     "react": "^19.3.1",

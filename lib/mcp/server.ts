@@ -19,10 +19,12 @@ import {
   listEntriesForAgent,
   listInbox,
   searchHighlights,
+  syncSearchQuietly,
   type AgentEntry,
   type AgentHighlight,
 } from "../core";
 import type { Db } from "../db";
+import { getVectorIndex, type VectorIndex } from "../search";
 import type { fetchOEmbed } from "../sources/youtube";
 
 export const MCP_SERVER_NAME = "sound-journal";
@@ -107,6 +109,8 @@ export function createMcpServer(
   deps: NonNullable<Parameters<typeof fetchOEmbed>[1]> = {},
   /** The connected app's registered name; recorded as `agent_name` on tags it attaches. */
   clientName: string | null = null,
+  /** The vector index (null: not configured). Searches use it, and writes push dirty highlights to it. */
+  index: VectorIndex | null = getVectorIndex(),
 ): McpServer {
   const server = new McpServer({ name: MCP_SERVER_NAME, version: pkg.version }, { instructions: serverInstructions({ matchEntry: REGISTERS_MATCH_ENTRY }) });
 
@@ -114,7 +118,9 @@ export function createMcpServer(
   async function guarded(need: Need, fn: () => Promise<CallToolResult>): Promise<CallToolResult> {
     try {
       await assertConnectorAllows(db, userId, need);
-      return await fn();
+      const result = await fn();
+      if (need !== "read") await syncSearchQuietly(db, userId, index);
+      return result;
     } catch (e) {
       if (e instanceof CoreError) return refusal(e.message);
       // Never hand raw database or runtime errors to the agent; log them where the owner can see them.
@@ -175,7 +181,7 @@ export function createMcpServer(
     {
       title: "Search highlights",
       description:
-        "Find highlights by filters. `query` matches the user's note text (case-insensitive substring for now; meaning search arrives with the search index and then adds a similarity score). All filters combine with AND; `tags` requires every named tag.",
+        "Find highlights by filters. `query` searches by meaning (the note, title, artists and tags together), so it works with different words than the note used; each match carries a similarity `score`. Without a search index it falls back to a case-insensitive substring match on notes. All filters combine with AND; `tags` requires every named tag.",
       inputSchema: {
         query: z.string().min(1).max(500).optional(),
         tags: z.array(z.string().min(1).max(100)).max(20).optional().describe("Tag names; a highlight must carry all of them"),
@@ -190,7 +196,7 @@ export function createMcpServer(
     },
     ({ from, to, ...rest }) =>
       guarded("read", async () => {
-        const items = await searchHighlights(db, userId, { ...rest, from, to });
+        const items = await searchHighlights(db, userId, { ...rest, from, to }, index);
         const text = items.length ? `${items.length} match(es):\n${items.map(describeHighlight).join("\n")}` : "No matching highlights.";
         return ok(text, { highlights: items });
       }),

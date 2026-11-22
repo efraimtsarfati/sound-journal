@@ -3,6 +3,15 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M6b — Vector index, search sync and meaning search (PR #27)
+**State:** done, no migration (`search_dirty` already existed). `lib/search` (Upstash adapter + `FakeVectorIndex` for tests); `lib/core/search.ts` (`syncDirtyHighlights`, `syncSearchQuietly`, `resyncSearch`, `listEntriesByMeaning`); soft deletes now set `search_dirty` so one sync path upserts live rows and removes dead ones; sync runs after every session write route (`after()`) and every MCP write tool; `/api/cron/resync` (08:30 UTC) and Settings "Re-sync search"; the purge cron deletes vectors of purged highlights; `search_highlights` and the entry list ("Search by meaning" checkbox) use the index and fall back to a note/title substring match when it is unset or errors. 369 tests; typecheck, lint, test, build pass. Release 0.6.0 cut (M6 complete).
+**Next:** M7. After merge, tag and publish v0.6.0.
+**Gotchas:**
+- A Bash heredoc halves backslashes (regex `[\\]` became `[\]`) → promoted to CLAUDE.md.
+**Doc drift:** architecture (Search sync "as built"), mcp-server (`search_highlights`), build-plan, changelog updated.
+**Follow-ups:** never tried against the real Upstash index (no network in the build); an edit landing between a sync's read and its flag-clear is not re-flagged; meaning search has no minimum score, so a query always returns the nearest matches; the Settings button shows no result counts.
+
+---
 ## 2026-11-21 — M4d — Song page and clip editing (PR #25)
 **State:** done, no migration. `lib/http/highlight-routes.ts` (injected `db`, tested on PGlite) wraps `updateHighlight` and `addHighlight`; routes `POST /api/highlights/[id]/update` and `POST /api/entries/[id]/highlights`. `app/entries/[id]/song-clips.tsx` is one client component: sticky player, clip cards (Edit, Save, Cancel, Delete), Add a clip. Capture now redirects to the song page after Save. `?edit=<highlightId>` opens a card in edit mode; the home list uses it for the first needs_why clip when filtering by "Needs a why", and the inbox banner links to that filter. `HighlightPlayer` removed; YouTube API loader and `TimeRow` extracted to `app/_components`. 357 tests; typecheck, lint, test, build pass. No release (M4 review/M6 not finished).
 **Next:** M6b.

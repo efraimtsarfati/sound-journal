@@ -19,7 +19,9 @@ import {
 } from "../db";
 import { parseYouTubeUrl, YOUTUBE_SOURCE_TYPE } from "../sources/youtube";
 import { getUserTimeZone } from "./connector";
+import type { VectorHit, VectorIndex } from "../search";
 import { startOfDayInZone } from "./dates";
+import { MEANING_TOP_K, meaningRank } from "./search";
 import { findDuplicateEntry } from "./entries";
 import { CoreError } from "./errors";
 import { AXIS_IDS } from "./text";
@@ -125,7 +127,7 @@ export async function getTaxonomy(db: DbOrTx, userId: string) {
 }
 
 export type SearchFilters = {
-  /** Meaning search arrives with the vector index (M6); until then this is a case-insensitive text match on the note. */
+  /** Meaning search through the vector index (results carry a `score`); a case-insensitive text match on the note when no index is configured. */
   query?: string;
   tags?: string[];
   axis?: string;
@@ -139,7 +141,13 @@ export type SearchFilters = {
 };
 
 /** Live highlights on live entries matching every given filter, newest captured first. */
-export async function searchHighlights(db: DbOrTx, userId: string, f: SearchFilters = {}) {
+export async function searchHighlights(
+  db: DbOrTx,
+  userId: string,
+  f: SearchFilters = {},
+  /** With an index, `query` searches by meaning; without one (or if it fails) it is a note substring match. */
+  index: VectorIndex | null = null,
+): Promise<(AgentHighlight & { score?: number })[]> {
   if (f.axis && !AXIS_IDS.includes(f.axis)) {
     throw new CoreError("invalid_input", `Unknown axis "${f.axis}". Expected one of: ${AXIS_IDS.join(", ")}.`);
   }
@@ -158,7 +166,18 @@ export async function searchHighlights(db: DbOrTx, userId: string, f: SearchFilt
   if (f.status) conds.push(eq(highlights.status, f.status));
   if (from) conds.push(gte(highlights.capturedAt, from));
   if (to) conds.push(lt(highlights.capturedAt, to));
-  if (f.query?.trim()) {
+  let ranked: VectorHit[] | null = null;
+  if (f.query?.trim() && index) {
+    try {
+      ranked = await meaningRank(index, userId, f.query, MEANING_TOP_K);
+    } catch (e) {
+      console.error("Meaning search failed; falling back to a text match on notes", e);
+    }
+  }
+  if (ranked) {
+    if (ranked.length === 0) return [];
+    conds.push(inArray(highlights.id, ranked.map((r) => r.id)));
+  } else if (f.query?.trim()) {
     const like = `%${f.query.trim().replace(/[\\%_]/g, "\\$&")}%`;
     conds.push(ilike(highlights.note, like));
   }
@@ -187,8 +206,14 @@ export async function searchHighlights(db: DbOrTx, userId: string, f: SearchFilt
     .innerJoin(entries, and(eq(entries.id, highlights.entryId), eq(entries.userId, highlights.userId)))
     .where(and(...conds))
     .orderBy(desc(highlights.capturedAt), desc(highlights.id))
-    .limit(clampLimit(f.limit, 20, 100));
-  return decorate(db, userId, rows.map((r) => r.h));
+    .limit(ranked ? MEANING_TOP_K : clampLimit(f.limit, 20, 100));
+  const decorated = await decorate(db, userId, rows.map((r) => r.h));
+  if (!ranked) return decorated;
+  const score = new Map(ranked.map((r) => [r.id, r.score]));
+  return decorated
+    .map((h) => ({ ...h, score: score.get(h.id) }))
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, clampLimit(f.limit, 20, 100));
 }
 
 export type AgentEntry = {

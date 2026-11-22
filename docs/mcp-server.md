@@ -18,7 +18,7 @@ All tools call `lib/core` functions only. Read tools are annotated `readOnlyHint
 |---|---|---|
 | `list_inbox` | `limit?` | Highlights in `needs_why` and `needs_tags`, with entry title/artist, timestamps and note |
 | `get_taxonomy` | — | Axes (from `axes.json`) and every approved/proposed tag with axis, state and usage count; rejected slugs |
-| `search_highlights` | `query?` (meaning search; until the search index exists in M6, a case-insensitive text match on the note with no score), `tags?`, `axis?`, `artist?`, `status?`, `from?`/`to?` (captured date, `YYYY-MM-DD`, read in the user's `settings.time_zone`; `from` is inclusive, `to` exclusive; dates that are not on the calendar, such as `2026-02-30`, are refused), `limit?` | Matching highlights with entry info, tags and a similarity score when `query` is used |
+| `search_highlights` | `query?` (meaning search through the vector index, with a score; without a configured index or when it errors, a case-insensitive text match on the note with no score), `tags?`, `axis?`, `artist?`, `status?`, `from?`/`to?` (captured date, `YYYY-MM-DD`, read in the user's `settings.time_zone`; `from` is inclusive, `to` exclusive; dates that are not on the calendar, such as `2026-02-30`, are refused), `limit?` | Matching highlights with entry info, tags and a similarity score when `query` is used |
 | `get_entry` | `entry_id` or `url` | The entry, its sources, artists, genres and all highlights |
 | `list_entries` | `limit?`, `cursor?`, `artist?` | Entries, newest first. `cursor` is the opaque `nextCursor` of the previous page (an offset no larger than 1,000,000) |
 
