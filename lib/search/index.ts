@@ -20,6 +20,7 @@ export interface VectorIndex {
 }
 
 const BATCH = 100;
+const REQUEST_TIMEOUT_MS = 5000;
 
 class UpstashVectorIndex implements VectorIndex {
   constructor(private readonly index: Index) {}
@@ -65,7 +66,13 @@ export function getVectorIndex(env: Record<string, string | undefined> = process
   const url = env.UPSTASH_VECTOR_REST_URL;
   const token = env.UPSTASH_VECTOR_REST_TOKEN;
   if (!url || !token) return null;
-  return new UpstashVectorIndex(new Index({ url, token }));
+  return new UpstashVectorIndex(new Index({
+      url,
+      token,
+      // Row locks are held in Postgres while the index is called, so keep every call short.
+      retry: { retries: 1 },
+      signal: () => AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }));
 }
 
 /** In-memory index for tests: "meaning" is word overlap. */

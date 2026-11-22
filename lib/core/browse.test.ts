@@ -181,6 +181,17 @@ describe("listEntries filters", () => {
     expect(await ids({ q: "100%" })).toEqual([]);
   });
 
+  it("matches % and _ literally in the tag filter", async () => {
+    // Tag names cannot contain % or _, so the filter must match nothing when given them.
+    const a = await entry("Tag Lit One", { note: "n" });
+    await setHighlightTags(t.db, OWNER_USER_ID, a.highlight.id, [{ name: "lit-glide", axis: "sound" }]);
+    const ids = async (tag: string) => (await listEntries(t.db, OWNER_USER_ID, { tag })).map((v) => v.entry.id);
+    expect(await ids("lit-glide")).toEqual([a.entry.id]);
+    expect(await ids("lit_glide")).toEqual([]); // `_` must not stand for the hyphen
+    expect(await ids("lit%")).toEqual([]);
+    expect(await ids("%")).toEqual([]);
+  });
+
   it("treats %, _ and backslash in the text filter literally", async () => {
     const lit = await entry("Wild_Card Lit");
     const alt = await entry("WildXCard Lit");

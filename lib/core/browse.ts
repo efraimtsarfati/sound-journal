@@ -13,6 +13,7 @@ import {
   type Highlight,
   type Tag,
 } from "../db";
+import { escapeLike, likeContains } from "./text";
 
 export type HighlightTag = Pick<Tag, "id" | "axis" | "name" | "state">;
 export type HighlightView = Highlight & { tags: HighlightTag[] };
@@ -94,7 +95,7 @@ export type EntryFilters = {
   entryIds?: string[];
 };
 
-const likeOf = (s: string) => `%${s.replace(/[\\%_]/g, "\\$&")}%`;
+const likeOf = likeContains;
 
 /** Live entries, newest first, with their live highlights, tags and status. Filters combine with AND. */
 export async function listEntries(
@@ -128,7 +129,7 @@ export async function listEntries(
         eq(tags.userId, userId),
         notInArray(tags.state, ["rejected", "merged"]),
       ];
-      if (tag) t.push(ilike(tags.name, tag.replace(/[\%_]/g, "\$&")));
+      if (tag) t.push(ilike(tags.name, escapeLike(tag)));
       if (opts.axis) t.push(eq(tags.axis, opts.axis));
       hl.push(
         exists(

@@ -3,6 +3,16 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-22 — M6c — M6b review follow-ups (PR #30)
+**State:** done, no migration. `resyncSearch` now takes one user; `resyncAllUsers` loops users. Sync/resync queries scoped by `user_id`; claim does a separate `SELECT ... ORDER BY id LIMIT n FOR UPDATE SKIP LOCKED`, then updates those ids; orphan sweep re-checks liveness under the advisory lock; Upstash client bounded (`retry: { retries: 1 }`, `signal: () => AbortSignal.timeout(5000)`); tag filter LIKE escape fixed and `escapeLike`/`likeContains` shared from `lib/core/text.ts`. No release (not a milestone end).
+**Next:** owner review and merge; then tag/publish v0.8.0 if not done.
+**Gotchas:**
+- Claim with `UPDATE ... WHERE id IN (SELECT ... LIMIT n FOR UPDATE SKIP LOCKED)` updated 2 rows for `limit 1` (flaky) → Postgres can re-run a locking subquery per row → select and lock the ids first, then update by id (in CLAUDE.md).
+- A test hook that opened a second PGlite transaction inside the sync's transaction hung and timed out 13 tests → single connection → run the hook before the transaction (Proxy on `db.transaction`).
+**Doc drift:** architecture (Search sync "as built"), build-plan (M6c row, M8 ticked), changelog.
+**Follow-ups:** the skip-locked behavior under real concurrent edits is not tested (PGlite is single-connection); the cron now resyncs per user (matching lock keys); vectors with no known owner are swept without a lock, which is safe because no user can restore a highlight there.
+
+---
 ## 2026-11-21 — M8 — PWA install, mobile pass, capture speed check (PR #29)
 **State:** done, no migration. `app/manifest.ts` (standalone, start_url `/capture`), generated icons in `public/` (`scripts/make-icons.mjs`, no dependencies), apple-touch and theme-color metadata; manifest and icons added to `isPublicPath` (+ test) so the browser can fetch them without a session. Audited tap targets: every button, link and input already uses `min-h-11`/`min-w-11`; the only small elements are non-interactive badges. Capture page does no data fetch and loads the YouTube API only after a link is pasted. 396 tests; typecheck, lint, test, build pass. Release 0.8.0 cut (M8 complete; the 0.7.0 milestone never got its own release, its changelog lines ship here).
 **Next:** owner runs the 8 acceptance checks on the phone; after merge, tag and publish v0.8.0; cut v1.0.0 when all pass.

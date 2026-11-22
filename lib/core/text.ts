@@ -62,7 +62,13 @@ export function normalizeArtistName(raw: string): string {
 }
 
 /** Workflow statuses (docs/taxonomy.md, "Not in the taxonomy") are never tags, in any spelling. */
-const STATUS_SLUGS = new Set(["needs-why", "needs-tags", "tagged"]);
+/** Escapes `\`, `%` and `_` so a user string matches literally inside LIKE / ILIKE. */
+export const escapeLike = (s: string): string => s.replace(/[\\%_]/g, "\\$&");
+
+/** A LIKE pattern matching `s` literally anywhere in the text. */
+export const likeContains = (s: string): string => `%${escapeLike(s)}%`;
+
+const STATUS_SLUGS =new Set(["needs-why", "needs-tags", "tagged"]);
 
 export function isStatusLikeTag(raw: string): boolean {
   return STATUS_SLUGS.has(raw.trim().toLowerCase().replace(/[\s_]+/g, "-"));
