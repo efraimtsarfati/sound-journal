@@ -3,6 +3,12 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-22 — M8b — Capture opens from ?url= (PR #PR)
+**State:** done, no migration, no release. `CaptureForm` runs the existing `lookup` once on mount when `initialUrl` is set (ref guard, so no double lookup under strict mode); the page already passed `?url=` and now accepts a repeated param. `proxy.ts` already sends `next = pathname + search` and `safeNext` already allows same-origin relative paths with a query, so the login round trip needed no code change; added a `safeNext` test for an encoded capture URL.
+**Next:** owner tries a Share-sheet Shortcut on the iPhone.
+**Follow-ups:** no component test (no testing-library in the repo); auto-lookup is untested in a browser.
+
+---
 ## 2026-11-22 — M6c — M6b review follow-ups (PR #30)
 **State:** done, no migration. `resyncSearch` now takes one user; `resyncAllUsers` loops users. Sync/resync queries scoped by `user_id`; claim does a separate `SELECT ... ORDER BY id LIMIT n FOR UPDATE SKIP LOCKED`, then updates those ids; orphan sweep re-checks liveness under the advisory lock; Upstash client bounded (`retry: { retries: 1 }`, `signal: () => AbortSignal.timeout(5000)`); tag filter LIKE escape fixed and `escapeLike`/`likeContains` shared from `lib/core/text.ts`. No release (not a milestone end).
 **Next:** owner review and merge; then tag/publish v0.8.0 if not done.

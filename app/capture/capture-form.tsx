@@ -67,6 +67,16 @@ export function CaptureForm({ initialUrl }: { initialUrl: string }) {
     }
   }, []);
 
+  // Opened with ?url= (e.g. from a Share-sheet Shortcut): run the same lookup once, no tap needed.
+  // The ref survives React's dev double-effect, so it never looks up twice.
+  const autoLooked = useRef(false);
+  useEffect(() => {
+    if (autoLooked.current) return;
+    autoLooked.current = true;
+    const first = initialUrl.trim();
+    if (first) queueMicrotask(() => void lookup(first));
+  }, [initialUrl, lookup]);
+
   // Build the embedded player; any failure falls back to the link-out below.
   useEffect(() => {
     if (!info || !info.embeddable || !playerEl.current) return;
