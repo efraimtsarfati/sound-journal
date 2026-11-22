@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Added
+- Entry list: search by title, artist or album, and filter by artist, tag, axis and status.
 - Settings page with the connector switches (Connector, Allow changes, Allow deletes) and the list of connected apps, each with a Revoke button.
 
 ### Changed

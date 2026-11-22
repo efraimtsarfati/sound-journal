@@ -159,3 +159,25 @@ describe("restore", () => {
     expect(Boolean(restored.restored) !== Boolean(!saved.duplicate)).toBe(true);
   });
 });
+
+describe("listEntries filters", () => {
+  it("filters by text, artist, tag, axis and status", async () => {
+    const a = await entry("Zebra Filter Song", { note: "n" });
+    const b = await entry("Other Filter Song", { note: "m" });
+    const artist = await insertArtist(t.db, { name: "Quokka Filter Band", nameNormalized: "quokka filter band" });
+    await t.db.insert(entryArtists).values({ entryId: a.entry.id, artistId: artist.id, role: "primary" });
+    await setHighlightTags(t.db, OWNER_USER_ID, a.highlight.id, [{ name: "zz glide", axis: "sound" }]);
+    const ids = async (f: Parameters<typeof listEntries>[2]) =>
+      (await listEntries(t.db, OWNER_USER_ID, f)).map((v) => v.entry.id);
+
+    expect(await ids({ q: "zebra filter" })).toEqual([a.entry.id]);
+    expect(await ids({ q: "quokka" })).toEqual([a.entry.id]);
+    expect(await ids({ artist: "QUOKKA" })).toEqual([a.entry.id]);
+    expect(await ids({ tag: "ZZ Glide" })).toEqual([a.entry.id]);
+    expect(await ids({ tag: "zz glide", axis: "feel" })).toEqual([]);
+    expect(await ids({ axis: "sound", tag: "zz glide" })).toEqual([a.entry.id]);
+    expect(await ids({ q: "Filter Song", status: "needs_tags" })).toContain(b.entry.id);
+    expect(await ids({ q: "Filter Song", status: "needs_tags" })).not.toContain(a.entry.id);
+    expect(await ids({ q: "100%" })).toEqual([]);
+  });
+});
