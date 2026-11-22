@@ -3,7 +3,7 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
-## 2026-11-22 — M6c — M6b review follow-ups (PR #PRNUM)
+## 2026-11-22 — M6c — M6b review follow-ups (PR #30)
 **State:** done, no migration. Sync/resync queries scoped by `user_id`; claim uses `FOR UPDATE SKIP LOCKED` in its subquery; orphan sweep re-checks liveness under the advisory lock; Upstash client bounded (`retry: { retries: 1 }`, `signal: () => AbortSignal.timeout(5000)`); tag filter LIKE escape fixed and `escapeLike`/`likeContains` shared from `lib/core/text.ts`. No release (not a milestone end).
 **Next:** owner review and merge; then tag/publish v0.8.0 if not done.
 **Gotchas:**
