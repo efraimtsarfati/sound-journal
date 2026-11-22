@@ -28,6 +28,10 @@ export type SyncResult = { upserted: number; removed: number };
  * Pushes every dirty highlight (one user's, or all when `userId` is omitted) to the index and clears
  * the flag. A highlight that is deleted, or whose entry is deleted, has its vector removed instead.
  * If the index call throws, the flags stay set and the error propagates.
+ *
+ * Must be called outside a transaction: it opens its own, and the advisory lock plus row locks it
+ * takes are only released when that transaction commits. Rows another transaction (an edit) holds
+ * are skipped (`FOR UPDATE SKIP LOCKED`); the edit re-flags them, so the next sync picks them up.
  */
 export async function syncDirtyHighlights(
   db: DbOrTx,
@@ -41,27 +45,37 @@ export async function syncDirtyHighlights(
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId ?? "*"}))`);
     const dirtyWhere = userId ? and(eq(highlights.searchDirty, true), eq(highlights.userId, userId)) : eq(highlights.searchDirty, true);
+    // Lock the batch first, skipping rows an edit holds. A separate select (not a subquery inside
+    // the UPDATE) keeps LIMIT exact: Postgres may re-run a locking subquery per updated row.
+    const locked = await tx
+      .select({ id: highlights.id })
+      .from(highlights)
+      .where(dirtyWhere)
+      .orderBy(asc(highlights.id))
+      .limit(limit)
+      .for("update", { skipLocked: true });
+    if (locked.length === 0) return { upserted: 0, removed: 0 };
     const claimed = await tx
       .update(highlights)
       .set({ searchDirty: false })
       .where(
         and(
-          dirtyWhere,
-          inArray(highlights.id, tx.select({ id: highlights.id }).from(highlights).where(dirtyWhere).orderBy(asc(highlights.id)).limit(limit)),
+          inArray(highlights.id, locked.map((r) => r.id)),
+          userId ? eq(highlights.userId, userId) : undefined,
         ),
       )
       .returning({ id: highlights.id });
     if (claimed.length === 0) return { upserted: 0, removed: 0 };
-    return pushClaimed(tx, index, claimed.map((c) => c.id));
+    return pushClaimed(tx, index, claimed.map((c) => c.id), userId);
   });
 }
 
-async function pushClaimed(db: DbOrTx, index: VectorIndex, ids: string[]): Promise<SyncResult> {
+async function pushClaimed(db: DbOrTx, index: VectorIndex, ids: string[], userId?: string): Promise<SyncResult> {
   const rows = await db
     .select({ h: highlights, e: entries })
     .from(highlights)
     .innerJoin(entries, and(eq(entries.id, highlights.entryId), eq(entries.userId, highlights.userId)))
-    .where(inArray(highlights.id, ids))
+    .where(and(inArray(highlights.id, ids), userId ? eq(highlights.userId, userId) : undefined))
     .orderBy(asc(highlights.id));
 
   const dead = rows.filter((r) => r.h.deletedAt || r.e.deletedAt).map((r) => r.h.id);
@@ -139,7 +153,7 @@ export async function resyncSearch(db: Db, index: VectorIndex, userId?: string):
   // so it can never be swept as an orphan.
   const listed = await index.listAll();
   const liveRows = await db
-    .select({ id: highlights.id })
+    .select({ id: highlights.id, userId: highlights.userId })
     .from(highlights)
     .innerJoin(entries, and(eq(entries.id, highlights.entryId), eq(entries.userId, highlights.userId)))
     .where(
@@ -148,12 +162,18 @@ export async function resyncSearch(db: Db, index: VectorIndex, userId?: string):
   const live = new Set(liveRows.map((r) => r.id));
   // Live highlights the index lacks (lost writes, a wiped index) are marked dirty so the loop pushes them.
   const inIndex = new Set(listed.map((v) => v.id));
-  const missing = [...live].filter((id) => !inIndex.has(id));
-  for (let i = 0; i < missing.length; i += 500) {
-    await db
-      .update(highlights)
-      .set({ searchDirty: true })
-      .where(inArray(highlights.id, missing.slice(i, i + 500)));
+  const missingByUser = new Map<string, string[]>();
+  for (const r of liveRows) {
+    if (inIndex.has(r.id)) continue;
+    missingByUser.set(r.userId, [...(missingByUser.get(r.userId) ?? []), r.id]);
+  }
+  for (const [uid, missing] of missingByUser) {
+    for (let i = 0; i < missing.length; i += 500) {
+      await db
+        .update(highlights)
+        .set({ searchDirty: true })
+        .where(and(inArray(highlights.id, missing.slice(i, i + 500)), eq(highlights.userId, uid)));
+    }
   }
   for (let i = 0; i < 1000; i++) {
     const r = await syncDirtyHighlights(db, index, userId);
@@ -164,8 +184,35 @@ export async function resyncSearch(db: Db, index: VectorIndex, userId?: string):
   const stray = listed
     .filter((v) => (userId ? v.userId === userId : true) && !live.has(v.id))
     .map((v) => v.id);
-  if (stray.length) await index.remove(stray);
-  return { upserted, removed, orphans: stray.length };
+  let orphans = 0;
+  if (stray.length) {
+    // A stray may have been restored since `live` was read. Under the same advisory lock the syncs
+    // take, re-check which are live now and remove only the rest. A restore that lands after this
+    // check flags the row dirty, so the next sync re-adds it.
+    orphans = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId ?? "*"}))`);
+      const nowLive = new Set<string>();
+      for (let i = 0; i < stray.length; i += 500) {
+        const rows = await tx
+          .select({ id: highlights.id })
+          .from(highlights)
+          .innerJoin(entries, and(eq(entries.id, highlights.entryId), eq(entries.userId, highlights.userId)))
+          .where(
+            and(
+              inArray(highlights.id, stray.slice(i, i + 500)),
+              isNull(highlights.deletedAt),
+              isNull(entries.deletedAt),
+              userId ? eq(highlights.userId, userId) : undefined,
+            ),
+          );
+        for (const r of rows) nowLive.add(r.id);
+      }
+      const toRemove = stray.filter((id) => !nowLive.has(id));
+      if (toRemove.length) await index.remove(toRemove);
+      return toRemove.length;
+    });
+  }
+  return { upserted, removed, orphans };
 }
 
 /** Re-sync for every user, for the daily cron. */

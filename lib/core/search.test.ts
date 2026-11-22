@@ -8,6 +8,7 @@ import { runDailyCleanup } from "./cleanup";
 import { addEntry, softDeleteEntry } from "./entries";
 import { addHighlight, softDeleteHighlight } from "./highlights";
 import { OWNER_USER_ID } from "./owner";
+import { restoreEntry } from "./restore";
 import { listEntriesByMeaning, resyncSearch, syncDirtyHighlights, syncSearchQuietly, vectorText } from "./search";
 import { setHighlightTags } from "./tags";
 
@@ -110,6 +111,33 @@ describe("resyncSearch", () => {
     expect(index.docs.has(r.highlight.id)).toBe(true);
   });
 
+  it("does not remove a stray that was restored after the live rows were read", async () => {
+    const u = await insertUser(t.db);
+    const r = await save("restored mid sweep", "Sweep Made Up", u.id);
+    const index = new FakeVectorIndex();
+    await syncDirtyHighlights(db, index, u.id, 1000);
+    await softDeleteEntry(db, u.id, r.entry.id);
+    await syncDirtyHighlights(db, index, u.id, 1000); // vector removed, flag clear
+    // The index still holds a vector for the deleted highlight, so the sweep sees it as a stray.
+    index.docs.set(r.highlight.id, { id: r.highlight.id, text: "stale", metadata: meta(u.id) });
+    // Nothing is dirty, so the sync loop opens one (empty) transaction and the sweep opens the
+    // next one: restore the entry right before the sweep's transaction starts.
+    let opened = 0;
+    const racing = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop !== "transaction") return Reflect.get(target, prop, receiver);
+        return async (...args: Parameters<Db["transaction"]>) => {
+          if (++opened === 2) await restoreEntry(db, u.id, r.entry.id);
+          return db.transaction(...args);
+        };
+      },
+    });
+    const out = await resyncSearch(racing, index, u.id);
+    expect(opened).toBe(2);
+    expect(out.orphans).toBe(0);
+    expect(index.docs.has(r.highlight.id)).toBe(true);
+  });
+
   it("leaves another user's vectors alone when scoped", async () => {
     const index = new FakeVectorIndex();
     index.docs.set(GHOST, { id: GHOST, text: "x", metadata: meta("someone-else") });
@@ -159,6 +187,18 @@ describe("sync safety", () => {
     expect(index.docs.has(r.highlight.id)).toBe(true);
     expect(index.docs.has(h2.id)).toBe(true);
     expect(await dirty(h2.id)).toBe(false);
+  });
+
+  it("claims at most `limit` dirty rows, in id order, and leaves the rest flagged", async () => {
+    await syncDirtyHighlights(db, new FakeVectorIndex(), OWNER_USER_ID, 1000);
+    const r = await save("batch one");
+    const h2 = await addHighlight(db, OWNER_USER_ID, r.entry.id, { note: "batch two" });
+    const [first, second] = [r.highlight.id, h2.id].sort();
+    const index = new FakeVectorIndex();
+    const out = await syncDirtyHighlights(db, index, OWNER_USER_ID, 1);
+    expect(out.upserted).toBe(1);
+    expect(await dirty(first)).toBe(false);
+    expect(await dirty(second)).toBe(true);
   });
 
   it("a failed push restores the dirty flag for every claimed row", async () => {

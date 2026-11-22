@@ -24,7 +24,7 @@ import { startOfDayInZone } from "./dates";
 import { MEANING_TOP_K, meaningRank } from "./search";
 import { findDuplicateEntry } from "./entries";
 import { CoreError } from "./errors";
-import { AXIS_IDS } from "./text";
+import { AXIS_IDS, likeContains } from "./text";
 
 /** Connector switches (docs/mcp-server.md). A missing settings row means the documented defaults. */
 export type ConnectorSettings = { enabled: boolean; allowChanges: boolean; allowDeletes: boolean };
@@ -178,7 +178,7 @@ export async function searchHighlights(
     if (ranked.length === 0) return [];
     conds.push(inArray(highlights.id, ranked.map((r) => r.id)));
   } else if (f.query?.trim()) {
-    const like = `%${f.query.trim().replace(/[\\%_]/g, "\\$&")}%`;
+    const like = likeContains(f.query.trim());
     conds.push(ilike(highlights.note, like));
   }
   const liveTag = and(

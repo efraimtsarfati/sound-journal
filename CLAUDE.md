@@ -47,4 +47,5 @@ Short, durable lessons promoted from `docs/dev-log.md` by the wrap-up skill. Kee
 - Working-copy files are CRLF (`core.autocrlf`): scripted multi-line string replaces silently match nothing; use the Edit tool.
 - No Python on this machine: edit files with sed, Edit or Write, not `python3`. A `sed` script that contains `#` inside the replacement text breaks when `#` is the delimiter; use `|` or the Edit tool.
 - Several `lib/http/*` handlers take an injected `db`, so route files stay one-liners and the logic is tested on PGlite; new routes should follow that.
+- PGlite is single-connection: a test hook that opens a second transaction from inside another one hangs until timeout. Run the hook before the transaction starts (e.g. wrap `db.transaction` in a Proxy). Also, `UPDATE ... WHERE id IN (SELECT ... LIMIT n FOR UPDATE SKIP LOCKED)` can touch more than n rows; select-and-lock first, then update by id.
 - Next 16 calls middleware `proxy.ts` (Node runtime); the auth gate lives there.

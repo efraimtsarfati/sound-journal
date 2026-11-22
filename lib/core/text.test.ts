@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { CoreError } from "./errors";
-import { isStatusLikeTag, normalizeArtistName, normalizeTagName } from "./text";
+import { escapeLike, isStatusLikeTag, likeContains, normalizeArtistName, normalizeTagName } from "./text";
+
+describe("escapeLike", () => {
+  it("escapes backslash, % and _", () => {
+    expect(escapeLike("a%b_c\\d")).toBe("a\\%b\\_c\\\\d");
+    expect(likeContains("50%")).toBe("%50\\%%");
+  });
+});
 
 describe("normalizeArtistName", () => {
   it("lowercases, strips accents and punctuation, collapses spaces, drops a leading the", () => {

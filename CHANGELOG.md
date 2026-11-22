@@ -6,6 +6,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+- Filtering by a tag whose name contains `%` or `_` now matches that tag literally instead of acting as a wildcard.
+
 ## [0.8.0] — 2026-11-21
 
 ### Added
