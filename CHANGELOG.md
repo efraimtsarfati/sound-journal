@@ -6,7 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-11-21
+
 ### Added
+- Installable app: Add to Home Screen opens Sound Journal full-screen on the Capture page, with an app icon and theme colour.
 - MusicBrainz matching: connected agents can match a saved song to its MusicBrainz recording with `match_entry`. A confident match tidies the title, album, year and artists and fetches the artists' genres. An unsure match shows "Confirm match?" on the song page and in the list, where you can accept or dismiss it.
 
 ### Changed

@@ -3,6 +3,13 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M8 — PWA install, mobile pass, capture speed check (PR #29)
+**State:** done, no migration. `app/manifest.ts` (standalone, start_url `/capture`), generated icons in `public/` (`scripts/make-icons.mjs`, no dependencies), apple-touch and theme-color metadata; manifest and icons added to `isPublicPath` (+ test) so the browser can fetch them without a session. Audited tap targets: every button, link and input already uses `min-h-11`/`min-w-11`; the only small elements are non-interactive badges. Capture page does no data fetch and loads the YouTube API only after a link is pasted. 396 tests; typecheck, lint, test, build pass. Release 0.8.0 cut (M8 complete; the 0.7.0 milestone never got its own release, its changelog lines ship here).
+**Next:** owner runs the 8 acceptance checks on the phone; after merge, tag and publish v0.8.0; cut v1.0.0 when all pass.
+**Doc drift:** none beyond build-plan and changelog.
+**Follow-ups:** no service worker (installable on Chrome/Android without one, but no offline); no share target, so sharing a YouTube link to the app is not wired; nothing measured in a real browser or on a phone, including the under-2-second capture speed; icon is a plain ring-and-dot placeholder; pre-existing lint warning for unused `secondary` in `capture-form.tsx`.
+
+---
 ## 2026-11-21 — M7 — MusicBrainz adapter, match_entry and confirm-match UI (PR #28)
 **State:** done, no migration (schema already had `mbid`, `mbid_candidate`, `artists.mbid`, `artist_genres`). `lib/metadata/musicbrainz.ts` (recording and artist-genre lookups, injectable fetch, User-Agent from `MUSICBRAINZ_CONTACT`, 1.1 s spacing); `lib/core/match.ts` (`matchEntry`, `confirmMatch`, `rejectMatchCandidate`); MCP `match_entry` registered and `REGISTERS_MATCH_ENTRY` flipped to true (rule 8 now sent); `lib/http/match-routes.ts` + `/api/entries/[id]/match/{confirm,reject}`; song page `MatchPanel` and a "Confirm match?" marker on the list. 395 tests (fixtures only, no live network); typecheck, lint, test, build pass. No release (M8 still to come).
 **Next:** M8 (PWA install, mobile pass, capture speed check).
