@@ -3,7 +3,7 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
-## 2026-11-22 — M8b — Capture opens from ?url= (PR #PR)
+## 2026-11-22 — M8b — Capture opens from ?url= (PR #31)
 **State:** done, no migration, no release. `CaptureForm` runs the existing `lookup` once on mount when `initialUrl` is set (ref guard, so no double lookup under strict mode); the page already passed `?url=` and now accepts a repeated param. `proxy.ts` already sends `next = pathname + search` and `safeNext` already allows same-origin relative paths with a query, so the login round trip needed no code change; added a `safeNext` test for an encoded capture URL.
 **Next:** owner tries a Share-sheet Shortcut on the iPhone.
 **Follow-ups:** no component test (no testing-library in the repo); auto-lookup is untested in a browser.
