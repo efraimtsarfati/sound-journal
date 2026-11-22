@@ -7,12 +7,23 @@ import { formatTime } from "@/lib/capture/time";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
+  const one = (k: string) => {
+    const v = sp[k];
+    return (Array.isArray(v) ? v[0] : v)?.slice(0, 100) ?? "";
+  };
+  const status = ["needs_why", "needs_tags", "tagged"].includes(one("status"))
+    ? (one("status") as "needs_why" | "needs_tags" | "tagged")
+    : undefined;
+  const filters = { q: one("q"), artist: one("artist"), tag: one("tag"), axis: one("axis"), status };
+  const filtering = Object.values(filters).some(Boolean);
   const db = getDb();
   const [counts, list] = await Promise.all([
     inboxCounts(db, OWNER_USER_ID),
-    listEntries(db, OWNER_USER_ID, { limit: 100 }),
+    listEntries(db, OWNER_USER_ID, { limit: 100, ...filters }),
   ]);
+  const field = "min-h-11 w-full rounded border border-neutral-300 px-2";
   return (
     <main className="mx-auto max-w-xl p-4">
       <h1 className="text-xl font-semibold">Sound Journal</h1>
@@ -22,7 +33,33 @@ export default async function Home() {
           ? "Inbox is clear."
           : `${counts.needsWhy} need a why, ${counts.needsTags} need tags.`}
       </p>
-      {list.length === 0 ? (
+      <form method="get" action="/" className="mt-4 flex flex-col gap-2" role="search">
+        <input name="q" defaultValue={filters.q} placeholder="Search title, artist, album" aria-label="Search" className={field} />
+        <div className="grid grid-cols-2 gap-2">
+          <input name="artist" defaultValue={filters.artist} placeholder="Artist" aria-label="Artist" className={field} />
+          <input name="tag" defaultValue={filters.tag} placeholder="Tag" aria-label="Tag" className={field} />
+          <input name="axis" defaultValue={filters.axis} placeholder="Axis" aria-label="Axis" className={field} />
+          <select name="status" defaultValue={status ?? ""} aria-label="Status" className={field}>
+            <option value="">Any status</option>
+            <option value="needs_why">Needs a why</option>
+            <option value="needs_tags">Needs tags</option>
+            <option value="tagged">Tagged</option>
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <button type="submit" className="min-h-11 rounded bg-neutral-900 px-4 text-white">
+            Search
+          </button>
+          {filtering && (
+            <Link href="/" className="flex min-h-11 items-center px-3 underline">
+              Clear
+            </Link>
+          )}
+        </div>
+      </form>
+      {list.length === 0 && filtering ? (
+        <p className="mt-6 text-neutral-600">No entries match.</p>
+      ) : list.length === 0 ? (
         <p className="mt-6 text-neutral-600">
           Nothing saved yet.{" "}
           <Link href="/capture" className="underline">

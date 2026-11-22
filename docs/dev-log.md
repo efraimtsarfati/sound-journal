@@ -3,6 +3,15 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M6a — Filters and text search on the entry list (PR #24)
+**State:** done, no migration. `listEntries` (`lib/core/browse.ts`) takes `q` (title, album, artist name), `artist`, `tag`, `axis`, `status`, combined with AND via `EXISTS` subqueries; `/` has a GET search form with the five controls and a Clear link. LIKE wildcards in input are escaped. 350 tests; typecheck, lint, test, build pass. No release (M6 not finished).
+**Next:** M4d (song page and clip editing) is still unbuilt; then M6b.
+**Gotchas:**
+- `axis` is free text in the schema, so the axis filter is a text box, not a select.
+**Doc drift:** none (spec-v1 already describes filtering).
+**Follow-ups:** tag/axis filters are not paginated or offered as pickers; not tried in a browser or on a phone.
+
+---
 ## 2026-11-21 — M5f — M5 security-review fixes (PR #23)
 **State:** done, one expand-only migration (`0001_oauth_code_tombstone`: nullable `oauth_codes.consumed_at` and `grant_id`). Connector switch rules now in `assertConnectorAllows` (`lib/core/connector.ts`), used by `guarded`; `add_entry` asks oEmbed before the transaction (5 s abort, skipped for already-saved links, result acted on only for a new entry), refuses 404 and every unverifiable result, keeps the agent title only for 401/403; `listGrants`/`revokeGrant` removed in favour of `listConnectedApps`/`revokeConnectedApp`; `checkSessionRequest` (`lib/http/session-request.ts`) guards the settings and revoke routes (logic moved to `lib/http/connector-routes.ts`, tested on PGlite); an exchanged code is kept as a tombstone until it expires and reusing it deletes its grant. Docs: architecture login-key nit, mcp-server accepted risks (no token audience binding, dynamic-client redirect), data-model `oauth_codes`. Release not cut (M5 review still to come).
 **Next:** M5 review (`pr-reviewer`, Opus) against M5a-M5f.

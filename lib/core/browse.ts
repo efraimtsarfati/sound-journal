@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, ilike, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
 import {
   artists,
   entries,
@@ -79,16 +79,70 @@ async function assemble(db: DbOrTx, userId: string, rows: Entry[], opts: { delet
   }));
 }
 
-/** Live entries, newest first, with their live highlights, tags and status. */
+export type EntryFilters = {
+  /** Text search over title, album and artist names. */
+  q?: string;
+  /** Artist name (partial, case-insensitive). */
+  artist?: string;
+  /** Tag name (exact, case-insensitive) on a live highlight. */
+  tag?: string;
+  /** Tag axis on a live highlight. */
+  axis?: string;
+  /** Highlight workflow status. */
+  status?: "needs_why" | "needs_tags" | "tagged";
+};
+
+const likeOf = (s: string) => `%${s.replace(/[\%_]/g, "\$&")}%`;
+
+/** Live entries, newest first, with their live highlights, tags and status. Filters combine with AND. */
 export async function listEntries(
   db: DbOrTx,
   userId: string,
-  opts: { limit?: number; offset?: number } = {},
+  opts: { limit?: number; offset?: number } & EntryFilters = {},
 ): Promise<EntryView[]> {
+  const conds = [eq(entries.userId, userId), isNull(entries.deletedAt)];
+  const artistMatch = (text: string) =>
+    exists(
+      db
+        .select({ one: sql`1` })
+        .from(entryArtists)
+        .innerJoin(artists, eq(artists.id, entryArtists.artistId))
+        .where(and(eq(entryArtists.entryId, entries.id), ilike(artists.name, likeOf(text)))),
+    );
+  const q = opts.q?.trim();
+  if (q) {
+    conds.push(or(ilike(entries.title, likeOf(q)), ilike(entries.album, likeOf(q)), artistMatch(q))!);
+  }
+  const artist = opts.artist?.trim();
+  if (artist) conds.push(artistMatch(artist));
+  const tag = opts.tag?.trim();
+  if (opts.status || tag || opts.axis) {
+    const hl = [eq(highlights.entryId, entries.id), eq(highlights.userId, userId), isNull(highlights.deletedAt)];
+    if (opts.status) hl.push(eq(highlights.status, opts.status));
+    if (tag || opts.axis) {
+      const t = [
+        eq(highlightTags.highlightId, highlights.id),
+        eq(tags.userId, userId),
+        notInArray(tags.state, ["rejected", "merged"]),
+      ];
+      if (tag) t.push(ilike(tags.name, tag.replace(/[\%_]/g, "\$&")));
+      if (opts.axis) t.push(eq(tags.axis, opts.axis));
+      hl.push(
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(highlightTags)
+            .innerJoin(tags, eq(tags.id, highlightTags.tagId))
+            .where(and(...t)),
+        ),
+      );
+    }
+    conds.push(exists(db.select({ one: sql`1` }).from(highlights).where(and(...hl))));
+  }
   const rows = await db
     .select()
     .from(entries)
-    .where(and(eq(entries.userId, userId), isNull(entries.deletedAt)))
+    .where(and(...conds))
     .orderBy(desc(entries.createdAt), desc(entries.id))
     .limit(Math.min(Math.max(opts.limit ?? 50, 1), 200))
     .offset(Math.max(opts.offset ?? 0, 0));
