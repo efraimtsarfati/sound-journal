@@ -32,6 +32,10 @@ export function isPublicPath(pathname: string): boolean {
   return (
     pathname === "/login" ||
     pathname === "/api/health" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/icon-192.png" ||
+    pathname === "/icon-512.png" ||
+    pathname === "/apple-touch-icon.png" ||
     pathname === "/oauth/authorize" ||
     pathname === "/api/mcp" ||
     pathname.startsWith("/api/auth/") ||
