@@ -7,6 +7,12 @@ import { formatTime } from "@/lib/capture/time";
 
 export const dynamic = "force-dynamic";
 
+/** In the "needs a why" view, an entry opens its first such clip already in edit mode. */
+function entryHref(id: string, hs: { id: string; status: string }[], status?: string) {
+  const w = status === "needs_why" ? hs.find((h) => h.status === "needs_why") : undefined;
+  return `/entries/${id}${w ? `?edit=${w.id}` : ""}`;
+}
+
 export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
   const one = (k: string) => {
@@ -32,6 +38,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         {counts.needsWhy === 0 && counts.needsTags === 0
           ? "Inbox is clear."
           : `${counts.needsWhy} need a why, ${counts.needsTags} need tags.`}
+        {counts.needsWhy > 0 && (
+          <>
+            {" "}
+            <Link href="/?status=needs_why" className="inline-flex min-h-11 items-center font-medium underline">
+              Add a why
+            </Link>
+          </>
+        )}
       </p>
       <form method="get" action="/" className="mt-4 flex flex-col gap-2" role="search">
         <input name="q" defaultValue={filters.q} placeholder="Search title, artist, album" aria-label="Search" className={field} />
@@ -70,7 +84,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         <ul className="mt-4 flex flex-col gap-3">
           {list.map(({ entry, artists, highlights }) => (
             <li key={entry.id} className="rounded border border-neutral-300">
-              <Link href={`/entries/${entry.id}`} className="block min-h-11 p-3">
+              <Link href={entryHref(entry.id, highlights, status)} className="block min-h-11 p-3">
                 <span className="block font-medium">{entry.title}</span>
                 {artists.length > 0 && <span className="block text-sm text-neutral-600">{artists.join(", ")}</span>}
                 <ul className="mt-2 flex flex-col gap-2">

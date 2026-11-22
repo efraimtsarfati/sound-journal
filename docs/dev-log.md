@@ -3,6 +3,13 @@
 Newest entry first. Written by the `wrap-up` skill at the end of every build session. A new session reads only the top entry. Recurring gotchas are promoted to `CLAUDE.md` or the relevant doc; this file is the history, not the rulebook.
 
 ---
+## 2026-11-21 — M4d — Song page and clip editing (PR #25)
+**State:** done, no migration. `lib/http/highlight-routes.ts` (injected `db`, tested on PGlite) wraps `updateHighlight` and `addHighlight`; routes `POST /api/highlights/[id]/update` and `POST /api/entries/[id]/highlights`. `app/entries/[id]/song-clips.tsx` is one client component: sticky player, clip cards (Edit, Save, Cancel, Delete), Add a clip. Capture now redirects to the song page after Save. `?edit=<highlightId>` opens a card in edit mode; the home list uses it for the first needs_why clip when filtering by "Needs a why", and the inbox banner links to that filter. `HighlightPlayer` removed; YouTube API loader and `TimeRow` extracted to `app/_components`. 357 tests; typecheck, lint, test, build pass. No release (M4 review/M6 not finished).
+**Next:** M6b.
+**Doc drift:** none (spec-v1 already described the song page).
+**Follow-ups:** the web inbox is only counts, so "inbox needs_why items link to the card" is done through the status filter on the entry list; a dedicated inbox page would be cleaner. Not tried in a browser or on a phone (player seek/Mark untested against real YouTube).
+
+---
 ## 2026-11-21 — M6a — Filters and text search on the entry list (PR #24)
 **State:** done, no migration. `listEntries` (`lib/core/browse.ts`) takes `q` (title, album, artist name), `artist`, `tag`, `axis`, `status`, combined with AND via `EXISTS` subqueries; `/` has a GET search form with the five controls and a Clear link. LIKE wildcards in input are escaped. 350 tests; typecheck, lint, test, build pass. No release (M6 not finished).
 **Next:** M4d (song page and clip editing) is still unbuilt; then M6b.

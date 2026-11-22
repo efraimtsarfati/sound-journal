@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { TimeRow } from "@/app/_components/time-row";
+import { loadYouTubeApi, type YTPlayer } from "@/app/_components/youtube-api";
 import { formatTime, parseTime } from "@/lib/capture/time";
 
 type Lookup = {
@@ -15,44 +18,6 @@ type Lookup = {
   artist: string | null;
   duplicate: { id: string; title: string } | null;
 };
-
-type YTPlayer = { getCurrentTime(): number; destroy(): void };
-type YTApi = {
-  Player: new (
-    el: HTMLElement,
-    opts: {
-      videoId: string;
-      playerVars?: Record<string, number>;
-      events?: { onReady?: () => void; onError?: () => void };
-    },
-  ) => YTPlayer;
-};
-declare global {
-  interface Window {
-    YT?: YTApi;
-    onYouTubeIframeAPIReady?: () => void;
-  }
-}
-
-let apiPromise: Promise<YTApi> | null = null;
-function loadYouTubeApi(): Promise<YTApi> {
-  if (window.YT?.Player) return Promise.resolve(window.YT);
-  apiPromise ??= new Promise<YTApi>((resolve, reject) => {
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      prev?.();
-      if (window.YT) resolve(window.YT);
-    };
-    const s = document.createElement("script");
-    s.src = "https://www.youtube.com/iframe_api";
-    s.onerror = () => {
-      apiPromise = null;
-      reject(new Error("player script failed"));
-    };
-    document.head.appendChild(s);
-  });
-  return apiPromise;
-}
 
 const btn = "min-h-11 min-w-11 rounded px-4 font-medium";
 const secondary = `${btn} border border-neutral-400 bg-white`;
@@ -69,13 +34,12 @@ export function CaptureForm({ initialUrl }: { initialUrl: string }) {
   const [end, setEnd] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState<string | null>(null);
+  const router = useRouter();
   const playerEl = useRef<HTMLDivElement>(null);
   const player = useRef<YTPlayer | null>(null);
 
   const lookup = useCallback(async (value: string) => {
     setError(null);
-    setSaved(null);
     setInfo(null);
     setLoading(true);
     try {
@@ -177,13 +141,9 @@ export function CaptureForm({ initialUrl }: { initialUrl: string }) {
         setError(data?.message ?? "Couldn't save. Your note is still here; try again.");
         return;
       }
-      setSaved(
-        data.status === "needs_why"
-          ? "Saved. It's in your inbox waiting for a why."
-          : "Saved. It's in your inbox waiting for tags.",
-      );
-      setInfo(null);
-      setUrl("");
+      // After Save, capture always goes to the song's page.
+      router.push(`/entries/${data.entryId}`);
+      return;
     } catch {
       setError("Couldn't reach the server. Your note is still here; try again.");
     } finally {
@@ -222,11 +182,6 @@ export function CaptureForm({ initialUrl }: { initialUrl: string }) {
       {error ? (
         <p role="alert" className="text-sm text-red-700">
           {error}
-        </p>
-      ) : null}
-      {saved ? (
-        <p role="status" className="rounded bg-green-50 p-3 text-sm text-green-900">
-          {saved} Paste another link to keep going.
         </p>
       ) : null}
 
@@ -322,41 +277,6 @@ export function CaptureForm({ initialUrl }: { initialUrl: string }) {
           </button>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function TimeRow(props: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  bad: boolean;
-  onMark?: () => void;
-  onClear: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <label htmlFor={props.id} className="w-10 text-sm">
-        {props.label}
-      </label>
-      <input
-        id={props.id}
-        value={props.value}
-        onChange={(e) => props.onChange(e.target.value)}
-        inputMode="numeric"
-        placeholder="m:ss"
-        aria-invalid={props.bad}
-        className={`min-h-11 w-24 rounded border px-3 ${props.bad ? "border-red-600" : "border-neutral-400"}`}
-      />
-      {props.onMark ? (
-        <button type="button" onClick={props.onMark} className={secondary}>
-          Mark
-        </button>
-      ) : null}
-      <button type="button" onClick={props.onClear} className={secondary} aria-label={`Clear ${props.label.toLowerCase()}`}>
-        ×
-      </button>
     </div>
   );
 }

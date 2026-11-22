@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 ### Added
+- Song page: one player at the top, a card per clip (tap its time to play from there), Edit for a clip's why and times (with Mark from the player), and Add a clip. Saving a capture now opens the song's page.
 - Entry list: search by title, artist or album, and filter by artist, tag, axis and status.
 - Settings page with the connector switches (Connector, Allow changes, Allow deletes) and the list of connected apps, each with a Revoke button.
 
